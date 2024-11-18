@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader};
@@ -14,6 +15,11 @@ fn main() -> io::Result<()> {
     let max_size = 100;
     let mut data_set = FixedHashTable::<String, usize>::new(100);
 
+    let mut data_set2 = HashMap::<String, usize>::new();
+    data_set2.insert("1".to_string(), 2);
+    data_set2.insert("3".to_string(), 3);
+    println!("test: {:?}", data_set2);
+
     for line in reader.lines() {
         let line = line?;
         let words: Vec<&str> = line.split_whitespace().collect();
@@ -24,9 +30,16 @@ fn main() -> io::Result<()> {
                 data_set.delete(key.as_str());
             }
 
-            // TODO: add get_mut method
+            // TODO: map.entry("key".to_string()).or_insert(0);
+            if let Some(count) = data_set.get_mut(word) {
+                *count += 1;
+            } else {
+                _ = data_set.insert(word.to_string(), 1);
+            };
         }
     }
+
+    println!("test: {:?}", data_set);
 
     Ok(())
 }
