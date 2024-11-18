@@ -136,7 +136,6 @@ impl<T> DoublyLinkedList<T> {
     }
 
     // TODO review
-    #[allow(dead_code)]
     pub fn back(&self) -> Option<Ref<T>> {
         self.tail
             .as_ref()

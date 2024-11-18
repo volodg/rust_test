@@ -1,16 +1,14 @@
 use crate::doubly_linked_list;
 use crate::doubly_linked_list::DoublyLinkedList;
 use proptest::proptest;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 // TODO:
-// 0. unit tests
 // 1. random hasher
-// 2. better error codes
-// 3. Deleted
+// 3. Cleanup Deleted
 // 4. Avoid Clone
 // 5. Move FixedHashTable to separate module
 // 6. add rehash
@@ -28,6 +26,7 @@ pub struct FixedHashTable<K, V> {
     count: usize,
 }
 
+// TODO don't clone key
 impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn new(size: usize) -> Self {
         let mut table = Vec::with_capacity(size);
@@ -113,6 +112,26 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
 
         false
     }
+
+    pub fn get_last(&self) -> Option<(Ref<K>, &V)> {
+        match self.history.back() {
+            Some(key) => {
+                let value = self.get(&key).expect("Key should exist in the hash table");
+                Some((key, value))
+            },
+            None => None,
+        }
+    }
+
+    pub fn get_first(&self) -> Option<(Ref<K>, &V)> {
+        match self.history.front() {
+            Some(key) => {
+                let value = self.get(&key).expect("Key should exist in the hash table");
+                Some((key, value))
+            },
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -120,7 +139,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_basic_methods() {
+    fn test_insert_get_delete() {
         let mut hash_table = FixedHashTable::new(10);
 
         assert!(hash_table.insert("apple", 5));
@@ -133,6 +152,34 @@ mod tests {
 
         assert!(hash_table.delete(&"banana"));
         assert_eq!(hash_table.get(&"banana"), None);
+    }
+
+
+    #[test]
+    fn test_get_first_get_last() {
+        let mut hash_table = FixedHashTable::new(10);
+
+        assert!(hash_table.insert("1", 1));
+        assert!(hash_table.insert("2", 2));
+        assert!(hash_table.insert("2", 22));
+        assert!(hash_table.insert("3", 3));
+        assert!(hash_table.insert("3", 33));
+        assert!(hash_table.insert("4", 4));
+
+        hash_table.delete(&"1");
+        hash_table.delete(&"4");
+
+        let Some((key, value)) = hash_table.get_first() else {
+            panic!("existing key value expected")
+        };
+        assert_eq!(*key, "2");
+        assert_eq!(*value, 22);
+
+        let Some((key, value)) = hash_table.get_last() else {
+            panic!("existing key value expected")
+        };
+        assert_eq!(*key, "3");
+        assert_eq!(*value, 33);
     }
 }
 
