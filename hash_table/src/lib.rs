@@ -135,26 +135,25 @@ proptest! {
         }
     }
 
-    // #[test]
-    // fn test_insert_delete_equivalence(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10), values in proptest::collection::vec(0..100, 1..10)) {
-    //     let mut table = FixedHashTable::new(20);
-    //     let mut map = HashMap::new();
-    //
-    //     // Вставляем данные в обе структуры
-    //     for (key, value) in keys.iter().zip(values.iter()) {
-    //         table.insert(key.clone(), *value).unwrap();
-    //         map.insert(key.clone(), *value);
-    //     }
-    //
-    //     for (key, _) in keys.iter().zip(values.iter()) {
-    //         table.delete(key).unwrap();
-    //         map.remove(key);
-    //     }
-    //
-    //     for (key, _) in keys.iter().zip(values.iter()) {
-    //         assert_eq!(table.get(key), map.get(key));
-    //     }
-    // }
+    #[test]
+    fn test_insert_delete_equivalence(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10), values in proptest::collection::vec(0..100, 1..10)) {
+        let mut table = FixedHashTable::new(20);
+        let mut map = HashMap::new();
+
+        // Вставляем данные в обе структуры
+        for (key, value) in keys.iter().zip(values.iter()) {
+            table.insert(key.clone(), *value).unwrap();
+            map.insert(key.clone(), *value);
+        }
+
+        for (key, _) in keys.iter().zip(values.iter()) {
+            assert_eq!(table.delete(key).ok(), map.remove(key).map(|_| ()));
+        }
+
+        for (key, _) in keys.iter().zip(values.iter()) {
+            assert_eq!(table.get(key), map.get(key));
+        }
+    }
 
     // #[test]
     // fn test_size_limit(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10)) {
