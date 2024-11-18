@@ -4,6 +4,7 @@ use std::hash::{Hash, Hasher};
 // TODO:
 // 0. unit tests
 // 1. random hasher
+// 2. better error codes
 // #[derive(Clone, Debug)]
 enum Slot<K, V> {
     Empty,
