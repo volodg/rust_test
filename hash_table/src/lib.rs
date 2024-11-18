@@ -88,7 +88,6 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

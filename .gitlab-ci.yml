@@ -1,0 +1,36 @@
+image: rust:latest
+
+stages:
+  - format
+  - lint
+  - check
+  - test
+
+variables:
+  CARGO_TERM_COLOR: always
+
+# Format job using cargo fmt
+format:
+  stage: format
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+
+# Lint job using cargo clippy
+lint:
+  stage: lint
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets -- -D warnings  # Run Clippy with warnings as errors
+
+# Check job using cargo check
+check:
+  stage: check
+  script:
+    - cargo check
+
+# Test job using cargo test
+test:
+  stage: test
+  script:
+    - cargo test --verbose
