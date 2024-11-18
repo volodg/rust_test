@@ -1,4 +1,3 @@
-
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::{Rc, Weak};
 
@@ -8,6 +7,7 @@ pub struct Node<T> {
     next: Option<Rc<RefCell<Node<T>>>>,
 }
 
+#[derive(Default)]
 pub struct DoublyLinkedList<T> {
     head: Option<Rc<RefCell<Node<T>>>>,
     tail: Option<Rc<RefCell<Node<T>>>>,
@@ -130,25 +130,33 @@ impl<T> DoublyLinkedList<T> {
     // TODO review
     #[allow(dead_code)]
     pub fn front(&self) -> Option<Ref<T>> {
-        self.head.as_ref().map(|node| Ref::map(node.borrow(), |n| &n.value))
+        self.head
+            .as_ref()
+            .map(|node| Ref::map(node.borrow(), |n| &n.value))
     }
 
     // TODO review
     #[allow(dead_code)]
     pub fn back(&self) -> Option<Ref<T>> {
-        self.tail.as_ref().map(|node| Ref::map(node.borrow(), |n| &n.value))
+        self.tail
+            .as_ref()
+            .map(|node| Ref::map(node.borrow(), |n| &n.value))
     }
 
     // TODO review
     #[allow(dead_code)]
     pub fn front_mut(&self) -> Option<RefMut<T>> {
-        self.head.as_ref().map(|node| RefMut::map(node.borrow_mut(), |n| &mut n.value))
+        self.head
+            .as_ref()
+            .map(|node| RefMut::map(node.borrow_mut(), |n| &mut n.value))
     }
 
     // TODO review
     #[allow(dead_code)]
     pub fn back_mut(&self) -> Option<RefMut<T>> {
-        self.tail.as_ref().map(|node| RefMut::map(node.borrow_mut(), |n| &mut n.value))
+        self.tail
+            .as_ref()
+            .map(|node| RefMut::map(node.borrow_mut(), |n| &mut n.value))
     }
 
     // TODO review

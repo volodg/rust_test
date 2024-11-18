@@ -1,10 +1,10 @@
+use crate::doubly_linked_list;
+use crate::doubly_linked_list::DoublyLinkedList;
+use proptest::proptest;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use proptest::proptest;
-use crate::doubly_linked_list;
-use crate::doubly_linked_list::DoublyLinkedList;
 
 // TODO:
 // 0. unit tests
@@ -83,7 +83,9 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, value, _) if existing_key == key => return Some(value),
+                Slot::Occupied(existing_key, value, _) if existing_key == key => {
+                    return Some(value)
+                }
                 Slot::Empty => return None,
                 _ => index = (index + 1) % self.size,
             }
