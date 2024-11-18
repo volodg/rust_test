@@ -1,5 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use proptest::proptest;
 
 // TODO:
 // 0. unit tests
@@ -98,7 +100,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_insert_get_delete() {
         // let mut hash_map = HashMap::new();
         // hash_map.insert(Key {}, Value {});
 
@@ -115,4 +117,61 @@ mod tests {
         assert!(hash_table.delete(&"banana").is_ok());
         assert_eq!(hash_table.get(&"banana"), None);
     }
+}
+
+proptest! {
+    #[test]
+    fn test_insert_get_equivalence(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10), values in proptest::collection::vec(0..100, 1..10)) {
+        let mut table = FixedHashTable::new(20);
+        let mut map = HashMap::new();
+
+        for (key, value) in keys.iter().zip(values.iter()) {
+            table.insert(key.clone(), *value).unwrap();
+            map.insert(key.clone(), *value);
+        }
+
+        for (key, _) in keys.iter().zip(values.iter()) {
+            assert_eq!(table.get(key), map.get(key));
+        }
+    }
+
+    // #[test]
+    // fn test_insert_delete_equivalence(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10), values in proptest::collection::vec(0..100, 1..10)) {
+    //     let mut table = FixedHashTable::new(20);
+    //     let mut map = HashMap::new();
+    //
+    //     // Вставляем данные в обе структуры
+    //     for (key, value) in keys.iter().zip(values.iter()) {
+    //         table.insert(key.clone(), *value).unwrap();
+    //         map.insert(key.clone(), *value);
+    //     }
+    //
+    //     for (key, _) in keys.iter().zip(values.iter()) {
+    //         table.delete(key).unwrap();
+    //         map.remove(key);
+    //     }
+    //
+    //     for (key, _) in keys.iter().zip(values.iter()) {
+    //         assert_eq!(table.get(key), map.get(key));
+    //     }
+    // }
+
+    // #[test]
+    // fn test_size_limit(keys in proptest::collection::vec(proptest::string::string_regex("[a-z]{1,5}").unwrap(), 1..10)) {
+    //     let mut table = FixedHashTable::new(5); // Ограничиваем размер до 5
+    //     let mut map = HashMap::new();
+    //
+    //     for (i, key) in keys.iter().enumerate() {
+    //         if i < 5 {
+    //             table.insert(key.clone(), i).unwrap();
+    //             map.insert(key.clone(), i);
+    //         } else {
+    //             assert_eq!(table.insert(key.clone(), i), Err("Hash table is full"));
+    //         }
+    //     }
+    //
+    //     for (key, &value) in map.iter() {
+    //         assert_eq!(table.get(key), Some(&value));
+    //     }
+    // }
 }
