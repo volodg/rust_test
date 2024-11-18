@@ -1,26 +1,34 @@
+mod doubly_linked_list;
+
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 use proptest::proptest;
-
+use crate::doubly_linked_list::DoublyLinkedList;
 // TODO:
 // 0. unit tests
 // 1. random hasher
 // 2. better error codes
+// 3. Deleted
+// 4. Avoid Clone
+// 5. Move FixedHashTable to separate module
 
 // #[derive(Clone, Debug)]
 enum Slot<K, V> {
     Empty,
-    Occupied(K, V),
+    Occupied(K, V, Rc<RefCell<doubly_linked_list::Node<K>>>),
     Deleted,
 }
 
 pub struct FixedHashTable<K, V> {
     table: Vec<Slot<K, V>>,
+    history: DoublyLinkedList<K>,
     size: usize,
     count: usize,
 }
 
-impl<K: Eq + Hash, V> FixedHashTable<K, V> {
+impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn new(size: usize) -> Self {
         let mut table = Vec::with_capacity(size);
         for _ in 0..size {
@@ -28,11 +36,13 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
         }
         Self {
             table,
+            history: DoublyLinkedList::<K>::new(),
             size,
             count: 0,
         }
     }
 
+    // TODO, use random hasher to avoid hash attacks
     fn hash(&self, key: &K) -> usize {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
@@ -48,12 +58,17 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
         for _ in 0..self.size {
             match &self.table[index] {
                 Slot::Empty | Slot::Deleted => {
-                    self.table[index] = Slot::Occupied(key, value);
+                    let node = self.history.push_back(key.clone());
+
+                    self.table[index] = Slot::Occupied(key, value, node);
                     self.count += 1;
                     return Ok(());
                 }
-                Slot::Occupied(existing_key, _) if existing_key == &key => {
-                    self.table[index] = Slot::Occupied(key, value); // Update value
+                Slot::Occupied(existing_key, _, prev_node) if existing_key == &key => {
+                    self.history.remove(prev_node.clone());
+                    let node = self.history.push_back(key.clone());
+
+                    self.table[index] = Slot::Occupied(key, value, node);
                     return Ok(());
                 }
                 _ => index = (index + 1) % self.size,
@@ -67,7 +82,7 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, value) if existing_key == key => return Some(value),
+                Slot::Occupied(existing_key, value, _) if existing_key == key => return Some(value),
                 Slot::Empty => return None,
                 _ => index = (index + 1) % self.size,
             }
@@ -80,7 +95,7 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, _) if existing_key == key => {
+                Slot::Occupied(existing_key, _, _) if existing_key == key => {
                     self.table[index] = Slot::Deleted;
                     self.count -= 1;
                     return Ok(());
