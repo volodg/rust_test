@@ -5,6 +5,7 @@ use std::rc::Rc;
 use proptest::proptest;
 use crate::doubly_linked_list;
 use crate::doubly_linked_list::DoublyLinkedList;
+
 // TODO:
 // 0. unit tests
 // 1. random hasher
@@ -91,7 +92,8 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         None
     }
 
-    pub fn delete(&mut self, key: &K) -> Result<(), &'static str> {
+    // TODO: return deleted value
+    pub fn delete(&mut self, key: &K) -> bool {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
@@ -100,14 +102,14 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
 
                     self.table[index] = Slot::Deleted;
                     self.count -= 1;
-                    return Ok(());
+                    return true;
                 }
-                Slot::Empty => return Err("Key not found"),
+                Slot::Empty => return false,
                 _ => index = (index + 1) % self.size,
             }
         }
 
-        Err("Key not found")
+        false
     }
 }
 
@@ -127,7 +129,7 @@ mod tests {
         assert_eq!(hash_table.get(&"banana"), Some(10).as_ref());
         assert_eq!(hash_table.get(&"grape"), None);
 
-        assert!(hash_table.delete(&"banana").is_ok());
+        assert!(hash_table.delete(&"banana"));
         assert_eq!(hash_table.get(&"banana"), None);
     }
 }
@@ -145,7 +147,7 @@ proptest! {
         }
 
         for (key, _) in keys.iter().zip(values.iter()) {
-            assert_eq!(table.delete(key).ok(), map.remove(key).map(|_| ()));
+            assert_eq!(table.delete(key), map.remove(key).is_some());
         }
 
         for (key, value) in keys.iter().zip(values.iter()) {
