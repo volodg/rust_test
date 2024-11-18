@@ -1,9 +1,11 @@
+use std::borrow::Borrow;
 use crate::doubly_linked_list;
 use crate::doubly_linked_list::DoublyLinkedList;
 use proptest::proptest;
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::rc::Rc;
 
 // TODO:
@@ -20,8 +22,8 @@ enum Slot<K, V> {
 }
 
 pub struct FixedHashTable<K, V> {
-    table: Vec<Slot<K, V>>,
-    history: DoublyLinkedList<K>,
+    table: Vec<Slot<Rc<K>, V>>,
+    history: DoublyLinkedList<Rc<K>>,
     size: usize,
     count: usize,
 }
@@ -35,14 +37,18 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         }
         Self {
             table,
-            history: DoublyLinkedList::<K>::new(),
+            history: DoublyLinkedList::<Rc<K>>::new(),
             size,
             count: 0,
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.size
+    }
+
     // TODO, use random hasher to avoid hash attacks
-    fn hash(&self, key: &K) -> usize {
+    fn hash<Q: Hash + ?Sized>(&self, key: &Q) -> usize {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         hasher.finish() as usize % self.size
@@ -58,17 +64,19 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         for _ in 0..self.size {
             match &self.table[index] {
                 Slot::Empty | Slot::Deleted => {
-                    let node = self.history.push_back(key.clone());
+                    let rc_key = Rc::new(key);
+                    let node = self.history.push_back(rc_key.clone());
 
-                    self.table[index] = Slot::Occupied(key, value, node);
+                    self.table[index] = Slot::Occupied(rc_key, value, node);
                     self.count += 1;
                     return true;
                 }
-                Slot::Occupied(existing_key, _, prev_node) if existing_key == &key => {
+                Slot::Occupied(existing_key, _, prev_node) if existing_key.deref() == &key => {
                     self.history.remove(prev_node.clone());
-                    let node = self.history.push_back(key.clone());
+                    let rc_key = Rc::new(key);
+                    let node = self.history.push_back(rc_key.clone());
 
-                    self.table[index] = Slot::Occupied(key, value, node);
+                    self.table[index] = Slot::Occupied(rc_key, value, node);
                     return true;
                 }
                 _ => index = (index + 1) % self.size,
@@ -78,11 +86,14 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         panic!("can not insert, invalid state")
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, value, _) if existing_key == key => {
+                Slot::Occupied(existing_key, value, _) if existing_key.deref().borrow() == key => {
                     return Some(value)
                 }
                 Slot::Empty => return None,
@@ -94,11 +105,13 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     }
 
     // TODO: return deleted value
-    pub fn delete(&mut self, key: &K) -> bool {
+    pub fn delete<Q: ?Sized>(&mut self, key: &Q) -> bool where
+        K: Borrow<Q>,
+        Q: Hash + Eq {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, _, node) if existing_key == key => {
+                Slot::Occupied(existing_key, _, node) if existing_key.deref().borrow() == key => {
                     self.history.remove(node.clone());
 
                     self.table[index] = Slot::Deleted;
@@ -113,22 +126,29 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         false
     }
 
-    pub fn get_last(&self) -> Option<(Ref<K>, &V)> {
+    pub fn delete_last(&mut self) {
+        if let Some((key, _)) = self.get_first() {
+            let key = key.clone();
+            self.delete(&key.clone());
+        }
+    }
+
+    pub fn get_last(&self) -> Option<(Rc<K>, &V)> {
         match self.history.back() {
             Some(key) => {
-                let value = self.get(&key).expect("Key should exist in the hash table");
-                Some((key, value))
-            },
+                let value = self.get(key.deref()).expect("Key should exist in the hash table");
+                Some((key.clone(), value))
+            }
             None => None,
         }
     }
 
-    pub fn get_first(&self) -> Option<(Ref<K>, &V)> {
+    pub fn get_first(&self) -> Option<(Rc<K>, &V)> {
         match self.history.front() {
             Some(key) => {
-                let value = self.get(&key).expect("Key should exist in the hash table");
-                Some((key, value))
-            },
+                let value = self.get(key.deref()).expect("Key should exist in the hash table");
+                Some((key.clone(), value))
+            }
             None => None,
         }
     }
