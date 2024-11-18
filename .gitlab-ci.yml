@@ -1,5 +1,7 @@
 image: rust:latest
 
+runs-on: self-hosted
+
 stages:
   - format
   - lint
