@@ -1,9 +1,11 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use crate::doubly_linked_list;
 use crate::doubly_linked_list::DoublyLinkedList;
 use proptest::proptest;
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
+use std::fmt;
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::Rc;
@@ -28,6 +30,32 @@ pub struct FixedHashTable<K, V> {
     count: usize,
 }
 
+impl<K: Debug, V: Debug> Debug for Slot<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Slot::Empty => write!(f, ""),
+            Slot::Occupied(key, value, _) => {
+                write!(f, "{:?}: {:?}", key, value)
+            }
+            Slot::Deleted => write!(f, ""),
+        }
+    }
+}
+
+impl<K: Eq + Hash + Debug, V: Debug> Debug for FixedHashTable<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Начинаем с обозначения имени структуры
+        if let Some(first) = self.table.first() {
+            write!(f, "{{{:?}", first)?;
+            for el in &self.table[1..] {
+                write!(f, ", {:?}", el)?
+            }
+            write!(f, "}}")?
+        }
+        Ok(())
+    }
+}
+
 // TODO don't clone key
 impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn new(size: usize) -> Self {
@@ -44,7 +72,7 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     }
 
     pub fn len(&self) -> usize {
-        self.size
+        self.count
     }
 
     // TODO, use random hasher to avoid hash attacks
@@ -86,15 +114,15 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         panic!("can not insert, invalid state")
     }
 
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    pub fn get_index<Q: ?Sized>(&self, key: &Q) -> Option<usize>
     where
         K: Borrow<Q>,
         Q: Hash + Eq {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
-                Slot::Occupied(existing_key, value, _) if existing_key.deref().borrow() == key => {
-                    return Some(value)
+                Slot::Occupied(existing_key, _, _) if existing_key.as_ref().borrow() == key => {
+                    return Some(index)
                 }
                 Slot::Empty => return None,
                 _ => index = (index + 1) % self.size,
@@ -102,6 +130,32 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         }
 
         None
+    }
+
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq {
+        self.get_index(key).map(|index| {
+            if let Slot::Occupied(_, value, _) = &self.table[index] {
+                return value
+            } else {
+                panic!("invalid state")
+            }
+        })
+    }
+
+    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: BorrowMut<Q>,
+        Q: Hash + Eq {
+        self.get_index(key).map(|index| {
+            if let Slot::Occupied(_, value, _) = &mut self.table[index] {
+                return value
+            } else {
+                panic!("invalid state")
+            }
+        })
     }
 
     // TODO: return deleted value
@@ -124,13 +178,6 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         }
 
         false
-    }
-
-    pub fn delete_last(&mut self) {
-        if let Some((key, _)) = self.get_first() {
-            let key = key.clone();
-            self.delete(&key.clone());
-        }
     }
 
     pub fn get_last(&self) -> Option<(Rc<K>, &V)> {
