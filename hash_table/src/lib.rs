@@ -1,6 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+// TODO:
+// 0. unit tests
+// 1. avoid clones
+// 2. random hasher
 #[derive(Clone, Debug)]
 enum Slot<K: Clone, V: Clone> {
     Empty,
@@ -43,7 +47,7 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
                     return Ok(());
                 }
                 Slot::Occupied(existing_key, _) if existing_key == &key => {
-                    self.table[index] = Slot::Occupied(key, value); // Обновляем значение
+                    self.table[index] = Slot::Occupied(key, value); // Update value
                     return Ok(());
                 }
                 _ => index = (index + 1) % self.size,
@@ -58,7 +62,7 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
         for _ in 0..self.size {
             match &self.table[index] {
                 Slot::Occupied(existing_key, value) if existing_key == key => return Some(value),
-                Slot::Empty => return None, // Ключа точно нет
+                Slot::Empty => return None,
                 _ => index = (index + 1) % self.size,
             }
         }
@@ -75,7 +79,7 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
                     self.count -= 1;
                     return Ok(());
                 }
-                Slot::Empty => return Err("Key not found"), // Ключа точно нет
+                Slot::Empty => return Err("Key not found"),
                 _ => index = (index + 1) % self.size,
             }
         }
@@ -84,57 +88,24 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
     }
 }
 
-fn main() {
-    let mut hash_table = FixedHashTable::new(5);
-
-    // Вставка
-    hash_table.insert("apple", 5).unwrap();
-    hash_table.insert("banana", 10).unwrap();
-    hash_table.insert("orange", 15).unwrap();
-
-    // Получение
-    println!("{:?}", hash_table.get(&"apple"));  // Some(5)
-    println!("{:?}", hash_table.get(&"banana")); // Some(10)
-    println!("{:?}", hash_table.get(&"grape"));  // None
-
-    // Удаление
-    hash_table.delete(&"banana").unwrap();
-    println!("{:?}", hash_table.get(&"banana")); // None
-
-    // Ошибка при переполнении
-    hash_table.insert("grape", 20).unwrap();
-    hash_table.insert("pear", 25).unwrap();
-    match hash_table.insert("melon", 30) {
-        Ok(_) => println!("Inserted"),
-        Err(e) => println!("Error: {}", e), // Error: Hash table is full
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use super::*;
 
     #[test]
     fn it_works() {
-        let hash_map: HashMap<String, String> = HashMap::new();
-        println!("{:?}", hash_map); // None
-
         let mut hash_table = FixedHashTable::new(10);
 
-        // Вставка элементов
-        hash_table.insert("apple", 5);
-        hash_table.insert("banana", 10);
-        hash_table.insert("orange", 15);
+        assert!(hash_table.insert("apple", 5).is_ok());
+        assert!(hash_table.insert("banana", 10).is_ok());
+        assert!(hash_table.insert("orange", 15).is_ok());
 
-        // Получение значений
-        println!("{:?}", hash_table.get(&"apple"));  // Some(5)
-        println!("{:?}", hash_table.get(&"banana")); // Some(10)
-        println!("{:?}", hash_table.get(&"grape"));  // None
+        assert_eq!(hash_table.get(&"apple"), Some(5).as_ref());
+        assert_eq!(hash_table.get(&"banana"), Some(10).as_ref());
+        assert_eq!(hash_table.get(&"grape"), None);
 
-        // Удаление элемента
-        hash_table.delete(&"banana");
-        println!("{:?}", hash_table.get(&"banana")); // None
+        assert!(hash_table.delete(&"banana").is_ok());
+        assert_eq!(hash_table.get(&"banana"), None);
     }
 }
