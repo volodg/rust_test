@@ -3,14 +3,14 @@ name: Rust CI
 on:
   push:
     branches:
-      - main      # Триггер на пуши в основную ветку
+      - main
   pull_request:
     branches:
-      - main      # Триггер на pull request в основную ветку
+      - main
 
 jobs:
   build:
-    runs-on: rust:latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
