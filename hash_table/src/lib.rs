@@ -3,25 +3,28 @@ use std::hash::{Hash, Hasher};
 
 // TODO:
 // 0. unit tests
-// 1. avoid clones
-// 2. random hasher
-#[derive(Clone, Debug)]
-enum Slot<K: Clone, V: Clone> {
+// 1. random hasher
+// #[derive(Clone, Debug)]
+enum Slot<K, V> {
     Empty,
     Occupied(K, V),
     Deleted,
 }
 
-pub struct FixedHashTable<K: Clone, V: Clone> {
+pub struct FixedHashTable<K, V> {
     table: Vec<Slot<K, V>>,
     size: usize,
     count: usize,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
+impl<K: Eq + Hash, V> FixedHashTable<K, V> {
     pub fn new(size: usize) -> Self {
+        let mut table = Vec::with_capacity(size);
+        for _ in 0..size {
+            table.push(Slot::Empty)
+        }
         Self {
-            table: vec![Slot::Empty; size],
+            table,
             size,
             count: 0,
         }
@@ -90,10 +93,14 @@ impl<K: Eq + Hash + Clone, V: Clone> FixedHashTable<K, V> {
 
 #[cfg(test)]
 mod tests {
+    // use std::collections::HashMap;
     use super::*;
 
     #[test]
     fn it_works() {
+        // let mut hash_map = HashMap::new();
+        // hash_map.insert(Key {}, Value {});
+
         let mut hash_table = FixedHashTable::new(10);
 
         assert!(hash_table.insert("apple", 5).is_ok());
