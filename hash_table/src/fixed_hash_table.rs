@@ -48,9 +48,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         hasher.finish() as usize % self.size
     }
 
-    pub fn insert(&mut self, key: K, value: V) -> Result<(), &'static str> {
+    // TODO try to return replaced value
+    pub fn insert(&mut self, key: K, value: V) -> bool {
         if self.count >= self.size {
-            return Err("Hash table is full");
+            return false;
         }
 
         let mut index = self.hash(&key);
@@ -61,20 +62,20 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
 
                     self.table[index] = Slot::Occupied(key, value, node);
                     self.count += 1;
-                    return Ok(());
+                    return true;
                 }
                 Slot::Occupied(existing_key, _, prev_node) if existing_key == &key => {
                     self.history.remove(prev_node.clone());
                     let node = self.history.push_back(key.clone());
 
                     self.table[index] = Slot::Occupied(key, value, node);
-                    return Ok(());
+                    return true;
                 }
                 _ => index = (index + 1) % self.size,
             }
         }
 
-        Err("No available slots found")
+        panic!("can not insert, invalid state")
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
@@ -118,9 +119,9 @@ mod tests {
     fn test_basic_methods() {
         let mut hash_table = FixedHashTable::new(10);
 
-        assert!(hash_table.insert("apple", 5).is_ok());
-        assert!(hash_table.insert("banana", 10).is_ok());
-        assert!(hash_table.insert("orange", 15).is_ok());
+        assert!(hash_table.insert("apple", 5));
+        assert!(hash_table.insert("banana", 10));
+        assert!(hash_table.insert("orange", 15));
 
         assert_eq!(hash_table.get(&"apple"), Some(5).as_ref());
         assert_eq!(hash_table.get(&"banana"), Some(10).as_ref());
@@ -139,7 +140,7 @@ proptest! {
         let mut map = HashMap::new();
 
         for (key, value) in keys.iter().zip(values.iter()) {
-            table.insert(key.clone(), *value).unwrap();
+            assert!(table.insert(key.clone(), *value));
             map.insert(key.clone(), *value);
         }
 
@@ -148,7 +149,7 @@ proptest! {
         }
 
         for (key, value) in keys.iter().zip(values.iter()) {
-            table.insert(key.clone(), *value).unwrap();
+            assert!(table.insert(key.clone(), *value));
             map.insert(key.clone(), *value);
         }
 
@@ -168,10 +169,10 @@ proptest! {
 
         for (i, key) in keys.iter().enumerate() {
             if map.len() < max_size {
-                table.insert(key.clone(), i).unwrap();
+                assert!(table.insert(key.clone(), i));
                 map.insert(key.clone(), i);
             } else {
-                assert_eq!(table.insert(key.clone(), i), Err("Hash table is full"));
+                assert!(!table.insert(key.clone(), i));
             }
         }
 
