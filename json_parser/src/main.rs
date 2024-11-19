@@ -9,6 +9,7 @@ mod json_stream_parser;
 // 4. Using simd to handle packets, not a byte per byte
 // 5. Use perf/cachegrind tool to find cache miss, etc
 // 6. TODO try nom library instead?
+// 7. Is not complete Json standard implementation
 
 fn main() {
     // let json = r#"

@@ -39,8 +39,6 @@ where
 pub enum JsonStreamParseError {
     UnexpectedEndOfInput,
     #[allow(dead_code)]
-    UnexpectedEndOfString,
-    #[allow(dead_code)]
     UnexpectedChar(char),
     #[allow(dead_code)]
     InvalidArray(String),
@@ -49,7 +47,6 @@ pub enum JsonStreamParseError {
     #[allow(dead_code)]
     InvalidLiteral(String),
     InvalidBoolean,
-    #[allow(dead_code)]
     InvalidNumber,
 }
 
@@ -201,7 +198,7 @@ where
                 self.parse_element()
             }
             Some(ParserState::ParsingKey) => {
-                todo!()
+                self.parse_string(true)
             }
             Some(ParserState::ParsingString) => {
                 self.parse_string(false)
@@ -246,7 +243,6 @@ where
         Ok(complete)
     }
 
-    #[allow(dead_code)]
     fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
@@ -256,7 +252,6 @@ where
         Ok(complete)
     }
 
-    // TODO complete
     fn parse_number(&mut self, is_negative: bool) -> Result<bool, JsonStreamParseError> {
         let is_complete;
 
@@ -300,16 +295,16 @@ where
     }
 
     // TODO handle escaped characters
-    fn parse_string(&mut self, _is_key: bool) -> Result<bool, JsonStreamParseError> {
+    fn parse_string(&mut self, is_key: bool) -> Result<bool, JsonStreamParseError> {
         while let Some(c) = self.next_char() {
             if c == '"' {
-                // TODO
-                //             if is_key {
-                //                 (self.callback)(JsonEvent::Key(text));
-                //             }
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
                 let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
-                (self.callback)(JsonEvent::String(slice));
+                if is_key {
+                    (self.callback)(JsonEvent::Key(slice));
+                } else {
+                    (self.callback)(JsonEvent::String(slice));
+                }
                 self.start_pos = self.offset;
 
                 return Ok(true);
