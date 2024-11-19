@@ -120,7 +120,8 @@ where
 
     fn parse_null(&mut self) -> Result<(), JsonStreamParseError> {
         self.expect_literal("null")?;
-        // (self.callback)(JsonEvent::Null);
+        (self.callback)(JsonEvent::Null);
+        self.set_start_pos(self.offset);
         Ok(())
     }
 
@@ -247,10 +248,15 @@ where
     //     Ok(())
     // }
 
+    fn increment_start_pos(&mut self) {
+        self.set_start_pos(self.state.start_pos() + 1);
+    }
+
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.peek_char() {
             if c.is_whitespace() {
                 self.next_char();
+                self.increment_start_pos();
             } else {
                 break;
             }
