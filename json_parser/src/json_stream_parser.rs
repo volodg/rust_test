@@ -79,7 +79,7 @@ where
             buffer,
             start_pos: 0,
             offset: 0,
-            states
+            states,
         }
     }
 
@@ -118,17 +118,17 @@ where
                             self.states.pop(); // pop ParsingArrayEl
                             self.states.pop(); // pop ParsingArray
                             (self.callback)(JsonEvent::EndArray);
-                            continue
+                            continue;
                         } else {
                             return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
                         }
                         complete = self.parse_value()?;
                     } else {
-                        return Ok(false)
+                        return Ok(false);
                     }
                 }
             } else {
-                return Ok(true)
+                return Ok(true);
             }
         }
 
@@ -179,7 +179,7 @@ where
                 } else {
                     Ok(false)
                 }
-            },
+            }
         }
     }
 
@@ -189,6 +189,15 @@ where
                 self.parse_element()
             }
             Some(ParserState::ParsingArrayEl) => {
+                // TODO fix code duplications
+                self.skip_whitespace();
+                if let Some(last_char) = self.peek_char() {
+                    if last_char == ',' {
+                        self.consume_char(',')?;
+                        self.start_pos = self.offset;
+                        self.skip_whitespace();
+                    }
+                }
                 self.parse_element()
             }
             Some(ParserState::ParsingKey) => {
@@ -334,6 +343,7 @@ where
                     if last_char == ',' {
                         self.consume_char(',')?;
                         self.start_pos = self.offset;
+                        self.skip_whitespace();
                     } else if last_char != ']' {
                         return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
                     }
@@ -341,7 +351,7 @@ where
                     break;
                 }
             } else {
-                break
+                break;
             }
         }
 
@@ -575,7 +585,6 @@ mod tests {
         }
 
         for split_at in 1..json.len() {
-            let split_at = 15;
             events.borrow_mut().clear();
             println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
             let mut parser = JsonStreamParser::new(|event| {
