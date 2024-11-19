@@ -43,20 +43,21 @@ pub enum JsonStreamParseError {
     InvalidNumber,
 }
 
+// keeps position in the buffer
 enum ParserState {
-    Initial,
-    ParsingString(usize), // keeps position in the buffer
-    ParsingNum(usize), // keeps position in the buffer
-    ParsingBool(usize), // keeps position in the buffer
+    Initial(usize),
+    ParsingString(usize),
+    ParsingNum(usize),
+    ParsingBool(usize),
 }
 
 impl ParserState {
-    fn start_pos(&self) -> Option<usize> {
+    fn start_pos(&self) -> usize {
         match self {
-            ParserState::Initial => None,
-            ParserState::ParsingString(pos) => Some(*pos),
-            ParserState::ParsingNum(pos) => Some(*pos),
-            ParserState::ParsingBool(pos) => Some(*pos),
+            ParserState::Initial(pos) => *pos,
+            ParserState::ParsingString(pos) => *pos,
+            ParserState::ParsingNum(pos) => *pos,
+            ParserState::ParsingBool(pos) => *pos,
         }
     }
 }
@@ -68,7 +69,7 @@ where
     pub fn new(callback: F) -> Self {
         let mut buffer = Vec::<u8>::with_capacity(1024); // 1k
         let offset = 0;
-        let state = ParserState::Initial;
+        let state = ParserState::Initial(0);
         Self {
             callback,
             buffer,
@@ -77,56 +78,52 @@ where
         }
     }
 
-    fn reset_start_pos(&mut self) {
+    fn set_start_pos(&mut self, pos: usize) {
         match self.state {
-            ParserState::Initial => (),
-            ParserState::ParsingString(_) => self.state = ParserState::ParsingString(0),
-            ParserState::ParsingNum(_) => self.state = ParserState::ParsingNum(0),
-            ParserState::ParsingBool(_) => self.state = ParserState::ParsingBool(0),
+            ParserState::Initial(_) => self.state = ParserState::Initial(pos),
+            ParserState::ParsingString(_) => self.state = ParserState::ParsingString(pos),
+            ParserState::ParsingNum(_) => self.state = ParserState::ParsingNum(pos),
+            ParserState::ParsingBool(_) => self.state = ParserState::ParsingBool(pos),
         }
     }
 
     fn append_buffer(&mut self, chunk: &[u8]) {
         let start_pos = self.state.start_pos();
-        if let Some(curr_pos) = start_pos {
-            self.offset = self.buffer.len() - curr_pos;
-            self.buffer.drain(..curr_pos);
-        } else {
-            self.offset = 0;
-            self.buffer.clear();
-        }
+        self.offset = self.buffer.len() - start_pos;
+        self.buffer.drain(..start_pos);
+
         // TODO: use custom cache friendly reallocation algorithm?
         self.buffer.extend_from_slice(chunk);
-        self.reset_start_pos();
+        self.set_start_pos(0);
     }
 
     pub fn parse(&mut self, chunk: &[u8]) -> Result<(), JsonStreamParseError> {
         self.append_buffer(chunk);
         self.skip_whitespace();
-    //     self.parse_value()?;
+        self.parse_value()?;
         Ok(())
     }
 
-    // fn parse_value(&mut self) -> Result<(), JsonStreamParseError> {
-    //     match self.peek_char() {
-    //         Some('n') => self.parse_null(),
-    //         Some('t') => self.parse_true(),
-    //         Some('f') => self.parse_false(),
-    //         Some('"') => self.parse_string(false),
-    //         Some('[') => self.parse_array(),
-    //         Some('{') => self.parse_object(),
-    //         Some(c) if c.is_digit(10) || c == '-' => self.parse_number(),
-    //         Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
-    //         None => Err(JsonStreamParseError::UnexpectedEndOfInput),
-    //     }
-    // }
-    //
-    // fn parse_null(&mut self) -> Result<(), JsonStreamParseError> {
-    //     self.expect_literal("null")?;
-    //     (self.callback)(JsonEvent::Null);
-    //     Ok(())
-    // }
-    //
+    fn parse_value(&mut self) -> Result<(), JsonStreamParseError> {
+         match self.peek_char() {
+            Some('n') => self.parse_null(),
+            Some('t') => todo!(), // self.parse_true(),
+            Some('f') => todo!(), // self.parse_false(),
+            Some('"') => todo!(), // self.parse_string(false),
+            Some('[') => todo!(), // self.parse_array(),
+            Some('{') => todo!(), // self.parse_object(),
+            // Some(c) if c.is_digit(10) || c == '-' => self.parse_number(),
+            Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
+            None => Err(JsonStreamParseError::UnexpectedEndOfInput),
+        }
+    }
+
+    fn parse_null(&mut self) -> Result<(), JsonStreamParseError> {
+        self.expect_literal("null")?;
+        // (self.callback)(JsonEvent::Null);
+        Ok(())
+    }
+
     // fn parse_true(&mut self) -> Result<(), JsonStreamParseError> {
     //     if self.expect_literal("true").is_ok() {
     //         (self.callback)(JsonEvent::Bool(true));
@@ -260,15 +257,15 @@ where
         }
     }
 
-    // // TODO review
-    // fn expect_literal(&mut self, literal: &str) -> Result<(), JsonStreamParseError> {
-    //     for expected in literal.chars() {
-    //         if self.next_char() != Some(expected) {
-    //             return Err(JsonStreamParseError::InvalidLiteral(format!("Expected literal: {}", literal)));
-    //         }
-    //     }
-    //     Ok(())
-    // }
+    // TODO review
+    fn expect_literal(&mut self, literal: &str) -> Result<(), JsonStreamParseError> {
+        for expected in literal.chars() {
+            if self.next_char() != Some(expected) {
+                return Err(JsonStreamParseError::InvalidLiteral(format!("Expected literal: {}", literal)));
+            }
+        }
+        Ok(())
+    }
 
     // // TODO review
     // fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
@@ -287,8 +284,14 @@ where
         }
     }
 
-    fn next_char(&mut self) {
-        self.offset += 1
+    fn next_char(&mut self) -> Option<char> {
+        if self.offset < self.buffer.len() {
+            let result = self.buffer[self.offset] as char;
+            self.offset += 1;
+            Some(result)
+        } else {
+            None
+        }
     }
 }
 
@@ -296,6 +299,7 @@ where
 mod tests {
     use super::*;
 
+    // TODO add test for null
     #[test]
     fn test_json_parser_callbacks() {
     //     let json = r#"
