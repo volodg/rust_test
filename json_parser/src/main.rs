@@ -1,7 +1,5 @@
 mod json_stream_parser;
 
-use crate::json_stream_parser::JsonStreamParser;
-
 // TODOs:
 // 1. L1 Cache-Friendly Buffer <= 32 kB
 // 2. Memory aligning using #[repr(align(64))]

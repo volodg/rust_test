@@ -339,6 +339,56 @@ where
 mod tests {
     use super::*;
 
+    #[derive(Debug, PartialEq)]
+    pub enum OwningJsonEvent {
+        Null,
+        Bool(bool),
+        Number(f64),
+        String(String),
+        StartObject,
+        EndObject,
+        StartArray,
+        EndArray,
+        Key(String),
+    }
+
+    impl<'a> From<JsonEvent<'a>> for OwningJsonEvent {
+        fn from(value: JsonEvent<'a>) -> Self {
+            match value {
+                JsonEvent::Null => OwningJsonEvent::Null,
+                JsonEvent::Bool(bool) => OwningJsonEvent::Bool(bool),
+                JsonEvent::Number(number) => OwningJsonEvent::Number(number),
+                JsonEvent::String(string) => OwningJsonEvent::String(string.to_string()),
+                JsonEvent::StartObject => OwningJsonEvent::StartObject,
+                JsonEvent::EndObject => OwningJsonEvent::EndObject,
+                JsonEvent::StartArray => OwningJsonEvent::StartArray,
+                JsonEvent::EndArray => OwningJsonEvent::EndArray,
+                JsonEvent::Key(key) => OwningJsonEvent::Key(key.to_string()),
+            }
+        }
+    }
+
+    #[test]
+    fn test_json_parser_null() {
+        let json = "null";
+
+        let mut events: Vec<OwningJsonEvent> = vec![];
+
+        let mut parser = JsonStreamParser::new(|event| {
+            events.push(event.into())
+        });
+        assert!(parser.parse(json.as_bytes()).is_ok());
+
+        let mut index = 0;
+        let mut get_next_idx = || {
+            let result = index;
+            index += 1;
+            result
+        };
+
+        assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Null);
+    }
+
     // TODO add test for null
     #[test]
     fn test_json_parser_callbacks() {
@@ -351,35 +401,6 @@ mod tests {
         //         "skills": ["Rust", "C++"]
         //     }
         // "#;
-        //
-        //     #[derive(Debug, PartialEq)]
-        //     pub enum OwningJsonEvent {
-        //         Null,
-        //         Bool(bool),
-        //         Number(f64),
-        //         String(String),
-        //         StartObject,
-        //         EndObject,
-        //         StartArray,
-        //         EndArray,
-        //         Key(String),
-        //     }
-        //
-        //     impl<'a> From<JsonEvent<'a>> for OwningJsonEvent {
-        //         fn from(value: JsonEvent<'a>) -> Self {
-        //             match value {
-        //                 JsonEvent::Null => OwningJsonEvent::Null,
-        //                 JsonEvent::Bool(bool) => OwningJsonEvent::Bool(bool),
-        //                 JsonEvent::Number(number) => OwningJsonEvent::Number(number),
-        //                 JsonEvent::String(string) => OwningJsonEvent::String(string.to_string()),
-        //                 JsonEvent::StartObject => OwningJsonEvent::StartObject,
-        //                 JsonEvent::EndObject => OwningJsonEvent::EndObject,
-        //                 JsonEvent::StartArray => OwningJsonEvent::StartArray,
-        //                 JsonEvent::EndArray => OwningJsonEvent::EndArray,
-        //                 JsonEvent::Key(key) => OwningJsonEvent::Key(key.to_string()),
-        //             }
-        //         }
-        //     }
         //
         //     let mut events: Vec<OwningJsonEvent> = vec![];
         //
