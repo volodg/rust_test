@@ -44,22 +44,19 @@ pub enum JsonStreamParseError {
 }
 
 // keeps position in the buffer
-enum ParserState {
-    Initial(usize),
-    ParsingString(usize),
-    ParsingNum(usize),
-    ParsingBool(usize),
+struct ParserState {
+    start_pos: usize, // TODO extract to stream parser
+    curr_element: ParserStateElement,
 }
 
-impl ParserState {
-    fn start_pos(&self) -> usize {
-        match self {
-            ParserState::Initial(pos) => *pos,
-            ParserState::ParsingString(pos) => *pos,
-            ParserState::ParsingNum(pos) => *pos,
-            ParserState::ParsingBool(pos) => *pos,
-        }
-    }
+
+enum ParserStateElement {
+    Initial,
+    ParsingKey,
+    ParsingString,
+    ParsingNum,
+    ParsingBool,
+    ParsingNull,
 }
 
 impl<'a, F> JsonStreamParser<F>
@@ -69,26 +66,24 @@ where
     pub fn new(callback: F) -> Self {
         let mut buffer = Vec::<u8>::with_capacity(1024); // 1k
         let offset = 0;
-        let state = ParserState::Initial(0);
+        let state = ParserState {
+            start_pos: 0,
+            curr_element: ParserStateElement::Initial,
+        };
         Self {
             callback,
             buffer,
             offset,
-            state
+            state,
         }
     }
 
     fn set_start_pos(&mut self, pos: usize) {
-        match self.state {
-            ParserState::Initial(_) => self.state = ParserState::Initial(pos),
-            ParserState::ParsingString(_) => self.state = ParserState::ParsingString(pos),
-            ParserState::ParsingNum(_) => self.state = ParserState::ParsingNum(pos),
-            ParserState::ParsingBool(_) => self.state = ParserState::ParsingBool(pos),
-        }
+        self.state.start_pos = pos
     }
 
     fn append_buffer(&mut self, chunk: &[u8]) {
-        let start_pos = self.state.start_pos();
+        let start_pos = self.state.start_pos;
         self.offset = self.buffer.len() - start_pos;
         self.buffer.drain(..start_pos);
 
@@ -105,43 +100,77 @@ where
     }
 
     fn parse_value(&mut self) -> Result<(), JsonStreamParseError> {
-         match self.peek_char() {
-            Some('n') => self.parse_null(),
-            Some('t') => todo!(), // self.parse_true(),
-            Some('f') => todo!(), // self.parse_false(),
-            Some('"') => todo!(), // self.parse_string(false),
-            Some('[') => todo!(), // self.parse_array(),
-            Some('{') => todo!(), // self.parse_object(),
-            // Some(c) if c.is_digit(10) || c == '-' => self.parse_number(),
-            Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
-            None => Err(JsonStreamParseError::UnexpectedEndOfInput),
+        match self.state.curr_element {
+            ParserStateElement::Initial => {
+                match self.peek_char() {
+                    Some('n') => {
+                        self.state.curr_element = ParserStateElement::ParsingNull;
+                        self.parse_null()
+                    }
+                    Some('t') => {
+                        self.parse_true()
+                    }
+                    Some('f') => {
+                        todo!() // self.parse_false()
+                    }
+                    Some('"') => {
+                        todo!() // self.parse_string(false)
+                    }
+                    Some('[') => {
+                        todo!() // self.parse_array()
+                    }
+                    Some('{') => {
+                        todo!() // self.parse_object()
+                    }
+                    // Some(c) if c.is_digit(10) || c == '-' => self.parse_number(),
+                    Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
+                    None => Err(JsonStreamParseError::UnexpectedEndOfInput),
+                }
+            }
+            ParserStateElement::ParsingKey => {
+                todo!()
+            }
+            ParserStateElement::ParsingString => {
+                todo!()
+            }
+            ParserStateElement::ParsingNum => {
+                todo!()
+            }
+            ParserStateElement::ParsingBool => {
+                todo!()
+            }
+            ParserStateElement::ParsingNull => {
+                self.parse_null()
+            }
         }
     }
 
     fn parse_null(&mut self) -> Result<(), JsonStreamParseError> {
-        self.expect_literal("null")?;
-        (self.callback)(JsonEvent::Null);
-        self.set_start_pos(self.offset);
+        let complete = self.expect_literal("null")?;
+        if complete {
+            (self.callback)(JsonEvent::Null);
+            self.set_start_pos(self.offset);
+        }
         Ok(())
     }
 
-    // fn parse_true(&mut self) -> Result<(), JsonStreamParseError> {
-    //     if self.expect_literal("true").is_ok() {
-    //         (self.callback)(JsonEvent::Bool(true));
-    //         Ok(())
-    //     } else {
-    //         Err(JsonStreamParseError::InvalidBoolean)
-    //     }
-    // }
-    //
-    // fn parse_false(&mut self) -> Result<(), JsonStreamParseError> {
-    //     if self.expect_literal("false").is_ok() {
-    //         (self.callback)(JsonEvent::Bool(false));
-    //         Ok(())
-    //     } else {
-    //         Err(JsonStreamParseError::InvalidBoolean)
-    //     }
-    // }
+    fn parse_true(&mut self) -> Result<(), JsonStreamParseError> {
+        let complete = self.expect_literal("true").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
+        if complete {
+            (self.callback)(JsonEvent::Bool(true));
+            self.set_start_pos(self.offset);
+        }
+        Ok(())
+    }
+
+    fn parse_false(&mut self) -> Result<(), JsonStreamParseError> {
+        let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
+        if complete {
+            (self.callback)(JsonEvent::Bool(true));
+            self.set_start_pos(self.offset);
+        }
+        Ok(())
+    }
 
     // TODO review
     // fn parse_number(&mut self) -> Result<(), JsonStreamParseError> {
@@ -249,7 +278,7 @@ where
     // }
 
     fn increment_start_pos(&mut self) {
-        self.set_start_pos(self.state.start_pos() + 1);
+        self.set_start_pos(self.state.start_pos + 1);
     }
 
     fn skip_whitespace(&mut self) {
@@ -264,13 +293,18 @@ where
     }
 
     // TODO review
-    fn expect_literal(&mut self, literal: &str) -> Result<(), JsonStreamParseError> {
-        for expected in literal.chars() {
-            if self.next_char() != Some(expected) {
-                return Err(JsonStreamParseError::InvalidLiteral(format!("Expected literal: {}", literal)));
+    fn expect_literal(&mut self, literal: &str) -> Result<bool, JsonStreamParseError> {
+        let start_pos = self.offset - self.state.start_pos;
+        for expected in literal[start_pos..].chars() {
+            if let Some(next_char) = self.next_char() {
+                if next_char != expected {
+                    return Err(JsonStreamParseError::InvalidLiteral(format!("Expected literal: {}", literal)));
+                }
+            } else {
+                return Ok(false);
             }
         }
-        Ok(())
+        Ok(true)
     }
 
     // // TODO review
@@ -308,82 +342,82 @@ mod tests {
     // TODO add test for null
     #[test]
     fn test_json_parser_callbacks() {
-    //     let json = r#"
-    //     {
-    //         "name": "Alice",
-    //         "age": 30,
-    //         "is_active": true,
-    //         "married": false,
-    //         "skills": ["Rust", "C++"]
-    //     }
-    // "#;
-    //
-    //     #[derive(Debug, PartialEq)]
-    //     pub enum OwningJsonEvent {
-    //         Null,
-    //         Bool(bool),
-    //         Number(f64),
-    //         String(String),
-    //         StartObject,
-    //         EndObject,
-    //         StartArray,
-    //         EndArray,
-    //         Key(String),
-    //     }
-    //
-    //     impl<'a> From<JsonEvent<'a>> for OwningJsonEvent {
-    //         fn from(value: JsonEvent<'a>) -> Self {
-    //             match value {
-    //                 JsonEvent::Null => OwningJsonEvent::Null,
-    //                 JsonEvent::Bool(bool) => OwningJsonEvent::Bool(bool),
-    //                 JsonEvent::Number(number) => OwningJsonEvent::Number(number),
-    //                 JsonEvent::String(string) => OwningJsonEvent::String(string.to_string()),
-    //                 JsonEvent::StartObject => OwningJsonEvent::StartObject,
-    //                 JsonEvent::EndObject => OwningJsonEvent::EndObject,
-    //                 JsonEvent::StartArray => OwningJsonEvent::StartArray,
-    //                 JsonEvent::EndArray => OwningJsonEvent::EndArray,
-    //                 JsonEvent::Key(key) => OwningJsonEvent::Key(key.to_string()),
-    //             }
-    //         }
-    //     }
-    //
-    //     let mut events: Vec<OwningJsonEvent> = vec![];
-    //
-    //     let mut parser = JsonStreamParser::new(json, |event| {
-    //         events.push(event.into())
-    //     });
-    //     assert!(parser.parse().is_ok());
-    //
-    //     let mut index = 0;
-    //     let mut get_next_idx = || {
-    //         let result = index;
-    //         index += 1;
-    //         result
-    //     };
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartObject);
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("name".to_string()));
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Alice".to_string()));
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("age".to_string()));
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Number(30.0));
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("is_active".to_string()));
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(true));
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("married".to_string()));
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(false));
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("skills".to_string()));
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartArray);
-    //     {
-    //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Rust".to_string()));
-    //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("C++".to_string()));
-    //     }
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndArray);
-    //
-    //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndObject);
+        //     let json = r#"
+        //     {
+        //         "name": "Alice",
+        //         "age": 30,
+        //         "is_active": true,
+        //         "married": false,
+        //         "skills": ["Rust", "C++"]
+        //     }
+        // "#;
+        //
+        //     #[derive(Debug, PartialEq)]
+        //     pub enum OwningJsonEvent {
+        //         Null,
+        //         Bool(bool),
+        //         Number(f64),
+        //         String(String),
+        //         StartObject,
+        //         EndObject,
+        //         StartArray,
+        //         EndArray,
+        //         Key(String),
+        //     }
+        //
+        //     impl<'a> From<JsonEvent<'a>> for OwningJsonEvent {
+        //         fn from(value: JsonEvent<'a>) -> Self {
+        //             match value {
+        //                 JsonEvent::Null => OwningJsonEvent::Null,
+        //                 JsonEvent::Bool(bool) => OwningJsonEvent::Bool(bool),
+        //                 JsonEvent::Number(number) => OwningJsonEvent::Number(number),
+        //                 JsonEvent::String(string) => OwningJsonEvent::String(string.to_string()),
+        //                 JsonEvent::StartObject => OwningJsonEvent::StartObject,
+        //                 JsonEvent::EndObject => OwningJsonEvent::EndObject,
+        //                 JsonEvent::StartArray => OwningJsonEvent::StartArray,
+        //                 JsonEvent::EndArray => OwningJsonEvent::EndArray,
+        //                 JsonEvent::Key(key) => OwningJsonEvent::Key(key.to_string()),
+        //             }
+        //         }
+        //     }
+        //
+        //     let mut events: Vec<OwningJsonEvent> = vec![];
+        //
+        //     let mut parser = JsonStreamParser::new(json, |event| {
+        //         events.push(event.into())
+        //     });
+        //     assert!(parser.parse().is_ok());
+        //
+        //     let mut index = 0;
+        //     let mut get_next_idx = || {
+        //         let result = index;
+        //         index += 1;
+        //         result
+        //     };
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartObject);
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("name".to_string()));
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Alice".to_string()));
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("age".to_string()));
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Number(30.0));
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("is_active".to_string()));
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(true));
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("married".to_string()));
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(false));
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("skills".to_string()));
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartArray);
+        //     {
+        //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Rust".to_string()));
+        //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("C++".to_string()));
+        //     }
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndArray);
+        //
+        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndObject);
     }
 }
