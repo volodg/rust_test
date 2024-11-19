@@ -59,6 +59,7 @@ enum ParserState {
     #[allow(dead_code)]
     ParsingKey,
     ParsingString,
+    ParsingArray,
     #[allow(dead_code)]
     ParsingNum,
     ParsingTrue,
@@ -124,7 +125,10 @@ where
                         self.parse_string(false)
                     }
                     Some('[') => {
-                        todo!() // self.parse_array()
+                        self.state = ParserState::ParsingArray;
+                        self.consume_char('[')?;
+                        self.start_pos += 1;
+                        self.parse_array()
                     }
                     Some('{') => {
                         todo!() // self.parse_object()
@@ -139,6 +143,9 @@ where
             }
             ParserState::ParsingString => {
                 self.parse_string(false)
+            }
+            ParserState::ParsingArray => {
+                self.parse_array()
             }
             ParserState::ParsingNum => {
                 todo!()
@@ -225,8 +232,7 @@ where
     }
 
     // TODO review
-    // fn parse_array(&mut self) -> Result<(), JsonStreamParseError> {
-    //     self.consume_char('[')?;
+    fn parse_array(&mut self) -> Result<bool, JsonStreamParseError> {
     //     (self.callback)(JsonEvent::StartArray);
     //
     //     loop {
@@ -246,9 +252,9 @@ where
     //             return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
     //         }
     //     }
-    //
-    //     Ok(())
-    // }
+
+        Ok(false)
+    }
 
     // TODO review
     // fn parse_object(&mut self) -> Result<(), JsonStreamParseError> {
