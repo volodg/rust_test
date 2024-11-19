@@ -86,7 +86,7 @@ where
         }
     }
 
-    pub fn append_buffer(&mut self, chunk: &[u8]) {
+    fn append_buffer(&mut self, chunk: &[u8]) {
         let start_pos = self.state.start_pos();
         if let Some(curr_pos) = start_pos {
             self.offset = self.buffer.len() - curr_pos;
@@ -101,7 +101,8 @@ where
     }
 
     pub fn parse(&mut self, chunk: &[u8]) -> Result<(), JsonStreamParseError> {
-    //     self.skip_whitespace();
+        self.append_buffer(chunk);
+        self.skip_whitespace();
     //     self.parse_value()?;
         Ok(())
     }
@@ -249,17 +250,16 @@ where
     //     Ok(())
     // }
 
-    // TODO review
-    // fn skip_whitespace(&mut self) {
-    //     while let Some(c) = self.peek_char() {
-    //         if c.is_whitespace() {
-    //             self.next_char();
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    // }
-    //
+    fn skip_whitespace(&mut self) {
+        while let Some(c) = self.peek_char() {
+            if c.is_whitespace() {
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+    }
+
     // // TODO review
     // fn expect_literal(&mut self, literal: &str) -> Result<(), JsonStreamParseError> {
     //     for expected in literal.chars() {
@@ -279,14 +279,17 @@ where
     //     }
     // }
 
-    // TODO review
-    // fn peek_char(&self) -> Option<char> {
-    //     self.input.clone().next()
-    // }
-    //
-    // fn next_char(&mut self) -> Option<char> {
-    //     self.input.next()
-    // }
+    fn peek_char(&self) -> Option<char> {
+        if self.offset < self.buffer.len() {
+            Some(self.buffer[self.offset] as char)
+        } else {
+            None
+        }
+    }
+
+    fn next_char(&mut self) {
+        self.offset += 1
+    }
 }
 
 #[cfg(test)]
