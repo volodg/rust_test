@@ -99,7 +99,6 @@ where
         let mut complete = self.parse_value()?;
         while complete {
             if let Some(top) = self.states.last() {
-                // ??
                 if top == &ParserState::ParsingArray {
                     self.skip_whitespace();
 
@@ -191,15 +190,18 @@ where
                         self.consume_char(',')?;
                         self.start_pos = self.offset;
                         self.skip_whitespace();
+                        self.parse_element()
                     } else if last_char == ']' {
                         self.consume_char(']')?;
                         self.skip_whitespace();
-                        self.states.pop(); // pop ParsingArray
                         (self.callback)(JsonEvent::EndArray);
-                        return Ok(true);
+                        Ok(true)
+                    } else {
+                        self.parse_element()
                     }
+                } else {
+                    Ok(false)
                 }
-                self.parse_element()
             }
             Some(ParserState::ParsingKey) => {
                 self.parse_string(true)
@@ -553,7 +555,7 @@ mod tests {
     #[test]
     fn test_json_parser_array() {
         let json = r#"
-            [56.3, "Rust", true, false, null]
+            [ 56.3, "Rust" , true, false , null ]
         "#;
 
         let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
