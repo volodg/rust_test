@@ -59,8 +59,7 @@ enum ParserState {
     ParsingKey,
     ParsingString,
     ParsingArray,
-    #[allow(dead_code)]
-    ParsingNum,
+    ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
     ParsingNull,
@@ -129,7 +128,16 @@ where
                     Some('{') => {
                         todo!() // self.parse_object()
                     }
-                    // Some(c) if c.is_digit(10) || c == '-' => self.parse_number(),
+                    Some(c) if c.is_digit(10) || c == '-' => {
+                        let is_negative = c == '-';
+                        if is_negative {
+                            self.consume_char('-')?;
+                            self.start_pos += 1;
+                        }
+
+                        self.states.push(ParserState::ParsingNum(is_negative));
+                        self.parse_number(is_negative)
+                    },
                     Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
                     None => Err(JsonStreamParseError::UnexpectedEndOfInput),
                 }
@@ -143,8 +151,8 @@ where
             Some(ParserState::ParsingArray) => {
                 self.parse_array()
             }
-            Some(ParserState::ParsingNum) => {
-                todo!()
+            Some(ParserState::ParsingNum(negative)) => {
+                self.parse_number(*negative)
             }
             Some(ParserState::ParsingTrue) => {
                 self.parse_true()
@@ -159,7 +167,7 @@ where
         if complete {
             self.states.pop();
         }
-        Ok(complete)
+        Ok(self.states.is_empty())
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
@@ -190,26 +198,48 @@ where
         Ok(complete)
     }
 
-    // TODO review
-    // fn parse_number(&mut self) -> Result<(), JsonStreamParseError> {
-    //     let mut num = String::new();
-    //
-    //     while let Some(c) = self.peek_char() {
-    //         if c.is_digit(10) || c == '.' || c == '-' || c == 'e' || c == 'E' {
-    //             num.push(self.next_char().unwrap());
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //
-    //     match num.parse::<f64>() {
-    //         Ok(n) => {
-    //             (self.callback)(JsonEvent::Number(n));
-    //             Ok(())
-    //         }
-    //         Err(_) => Err(JsonStreamParseError::InvalidNumber),
-    //     }
-    // }
+    // TODO complete
+    fn parse_number(&mut self, is_negative: bool) -> Result<bool, JsonStreamParseError> {
+        let mut complete = false;
+
+        loop {
+            if let Some(chr) = self.peek_char() {
+                if chr.is_digit(10) || chr == '.' || chr == '-' || chr == 'e' || chr == 'E' {
+                    self.next_char();
+                } else {
+                    if self.states.len() == 1 { // num is a top level element
+                        return Err(JsonStreamParseError::InvalidNumber)
+                    } else {
+                        complete = true;
+                        break;
+                    }
+                }
+            } else {
+                complete = true;
+                break;
+            }
+        }
+
+        if complete {
+            let bytes = &self.buffer[self.start_pos..self.offset];
+            let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
+
+            match slice.parse::<f64>() {
+                Ok(n) => {
+                    if is_negative {
+                        (self.callback)(JsonEvent::Number(-n));
+                    } else {
+                        (self.callback)(JsonEvent::Number(n));
+                    }
+                    self.start_pos = self.offset;
+                    return Ok(true)
+                }
+                Err(_) => return Err(JsonStreamParseError::InvalidNumber),
+            }
+        }
+
+        Ok(false)
+    }
 
     // TODO handle escaped characters
     fn parse_string(&mut self, _is_key: bool) -> Result<bool, JsonStreamParseError> {
@@ -231,10 +261,10 @@ where
         Ok(false)
     }
 
-    // TODO review
+    // TODO complete
     fn parse_array(&mut self) -> Result<bool, JsonStreamParseError> {
-    //     (self.callback)(JsonEvent::StartArray);
-    //
+        (self.callback)(JsonEvent::StartArray);
+
     //     loop {
     //         self.skip_whitespace();
     //         if self.peek_char() == Some(']') {
@@ -442,6 +472,13 @@ mod tests {
     fn test_json_parser_string() {
         let literal = "\"test string\"";
         let expected = OwningJsonEvent::String("test string".into());
+        test_json_parser_element(literal, expected);
+    }
+
+    #[test]
+    fn test_json_parser_number() {
+        let literal = "56";
+        let expected = OwningJsonEvent::Number(56.0);
         test_json_parser_element(literal, expected);
     }
 
