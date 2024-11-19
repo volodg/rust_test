@@ -68,8 +68,8 @@ enum ParserStateElement {
     ParsingString,
     #[allow(dead_code)]
     ParsingNum,
-    #[allow(dead_code)]
-    ParsingBool,
+    ParsingTrue,
+    ParsingFalse,
     ParsingNull,
 }
 
@@ -123,10 +123,12 @@ where
                         self.parse_null()
                     }
                     Some('t') => {
+                        self.state.curr_element = ParserStateElement::ParsingTrue;
                         self.parse_true()
                     }
                     Some('f') => {
-                        todo!() // self.parse_false()
+                        self.state.curr_element = ParserStateElement::ParsingFalse;
+                        self.parse_false()
                     }
                     Some('"') => {
                         todo!() // self.parse_string(false)
@@ -151,8 +153,11 @@ where
             ParserStateElement::ParsingNum => {
                 todo!()
             }
-            ParserStateElement::ParsingBool => {
-                todo!()
+            ParserStateElement::ParsingTrue => {
+                self.parse_true()
+            }
+            ParserStateElement::ParsingFalse => {
+                self.parse_false()
             }
             ParserStateElement::ParsingNull => {
                 self.parse_null()
@@ -356,7 +361,7 @@ mod tests {
     use std::cell::RefCell;
     use super::*;
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum OwningJsonEvent {
         Null,
         Bool(bool),
@@ -385,9 +390,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_json_parser_null() {
-        let json = "null";
+    fn test_json_parser_literal(literal: &str, expected: OwningJsonEvent) {
+        let json = literal;
 
         let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
 
@@ -404,8 +408,8 @@ mod tests {
             prev_index
         };
 
-        fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
-            assert_eq!(&events[inc()], &OwningJsonEvent::Null);
+        fn test(events: &[OwningJsonEvent], expected: OwningJsonEvent, mut inc: impl FnMut() -> usize) {
+            assert_eq!(&events[inc()], &expected);
         }
 
         for split_at in 1..json.len() {
@@ -413,7 +417,7 @@ mod tests {
             assert!(parser.parse(&bytes[0..split_at]).is_ok());
             assert!(parser.parse(&bytes[split_at..]).is_ok());
             *index.borrow_mut() = 0;
-            test(&events.borrow(), get_next_idx);
+            test(&events.borrow(), expected.clone(), get_next_idx);
         }
 
         events.borrow_mut().clear();
@@ -421,7 +425,14 @@ mod tests {
         assert!(parser.parse(&bytes).is_ok());
 
         *index.borrow_mut() = 0;
-        test(&events.borrow(), get_next_idx);
+        test(&events.borrow(), expected.clone(), get_next_idx);
+    }
+
+    #[test]
+    fn test_json_parser_null() {
+        let literal = "null";
+        let expected = OwningJsonEvent::Null;
+        test_json_parser_literal(literal, expected);
     }
 
     // TODO add test for null
