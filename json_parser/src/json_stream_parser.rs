@@ -435,6 +435,20 @@ mod tests {
         test_json_parser_literal(literal, expected);
     }
 
+    #[test]
+    fn test_json_parser_true() {
+        let literal = "true";
+        let expected = OwningJsonEvent::Bool(true);
+        test_json_parser_literal(literal, expected);
+    }
+
+    #[test]
+    fn test_json_parser_false() {
+        let literal = "false";
+        let expected = OwningJsonEvent::Bool(true);
+        test_json_parser_literal(literal, expected);
+    }
+
     // TODO add test for null
     #[test]
     fn test_json_parser_callbacks() {
