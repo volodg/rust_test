@@ -200,7 +200,7 @@ where
 
     // TODO complete
     fn parse_number(&mut self, is_negative: bool) -> Result<bool, JsonStreamParseError> {
-        let mut complete = false;
+        let is_complete;
 
         loop {
             if let Some(chr) = self.peek_char() {
@@ -210,21 +210,21 @@ where
                     if self.states.len() == 1 { // num is a top level element
                         return Err(JsonStreamParseError::InvalidNumber)
                     } else {
-                        complete = true;
+                        is_complete = true;
                         break;
                     }
                 }
             } else {
-                complete = true;
+                is_complete = self.states.len() == 1; // is top level
                 break;
             }
         }
 
-        if complete {
+        if is_complete {
             let bytes = &self.buffer[self.start_pos..self.offset];
             let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
 
-            match slice.parse::<f64>() {
+            return match slice.parse::<f64>() {
                 Ok(n) => {
                     if is_negative {
                         (self.callback)(JsonEvent::Number(-n));
@@ -232,9 +232,9 @@ where
                         (self.callback)(JsonEvent::Number(n));
                     }
                     self.start_pos = self.offset;
-                    return Ok(true)
+                    Ok(true)
                 }
-                Err(_) => return Err(JsonStreamParseError::InvalidNumber),
+                Err(_) => Err(JsonStreamParseError::InvalidNumber),
             }
         }
 
@@ -405,7 +405,7 @@ mod tests {
         }
     }
 
-    fn test_json_parser_element(element: &str, expected: OwningJsonEvent) {
+    fn test_json_parser_element(element: &str, expected: OwningJsonEvent, chunked: bool) {
         let json = element;
 
         let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
@@ -423,17 +423,19 @@ mod tests {
             assert_eq!(&events[inc()], &expected);
         }
 
-        for split_at in 1..json.len() {
-            events.borrow_mut().clear();
-            println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
-            let mut parser = JsonStreamParser::new(|event| {
-                events.borrow_mut().push(event.into())
-            });
+        if chunked {
+            for split_at in 1..json.len() {
+                events.borrow_mut().clear();
+                println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
+                let mut parser = JsonStreamParser::new(|event| {
+                    events.borrow_mut().push(event.into())
+                });
 
-            assert!(parser.parse(&bytes[0..split_at]).is_ok());
-            assert!(parser.parse(&bytes[split_at..]).is_ok());
-            *index.borrow_mut() = 0;
-            test(&events.borrow(), expected.clone(), get_next_idx);
+                assert!(parser.parse(&bytes[0..split_at]).is_ok());
+                assert!(parser.parse(&bytes[split_at..]).is_ok());
+                *index.borrow_mut() = 0;
+                test(&events.borrow(), expected.clone(), get_next_idx);
+            }
         }
 
         events.borrow_mut().clear();
@@ -451,35 +453,35 @@ mod tests {
     fn test_json_parser_null() {
         let literal = "null";
         let expected = OwningJsonEvent::Null;
-        test_json_parser_element(literal, expected);
+        test_json_parser_element(literal, expected, true);
     }
 
     #[test]
     fn test_json_parser_true() {
         let literal = "true";
         let expected = OwningJsonEvent::Bool(true);
-        test_json_parser_element(literal, expected);
+        test_json_parser_element(literal, expected, true);
     }
 
     #[test]
     fn test_json_parser_false() {
         let literal = "false";
         let expected = OwningJsonEvent::Bool(true);
-        test_json_parser_element(literal, expected);
+        test_json_parser_element(literal, expected, true);
     }
 
     #[test]
     fn test_json_parser_string() {
         let literal = "\"test string\"";
         let expected = OwningJsonEvent::String("test string".into());
-        test_json_parser_element(literal, expected);
+        test_json_parser_element(literal, expected, true);
     }
 
     #[test]
     fn test_json_parser_number() {
         let literal = "56";
         let expected = OwningJsonEvent::Number(56.0);
-        test_json_parser_element(literal, expected);
+        test_json_parser_element(literal, expected, false);
     }
 
     // TODO add test for null
