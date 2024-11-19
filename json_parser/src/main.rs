@@ -12,20 +12,20 @@ use crate::json_stream_parser::JsonStreamParser;
 // 5. Use perf/cachegrind tool to find cache miss, etc
 
 fn main() {
-    let json = r#"
-        {
-            "name": "Alice",
-            "age": 30,
-            "is_active": true,
-            "skills": ["Rust", "C++"]
-        }
-    "#;
-
-    let mut parser = JsonStreamParser::new(json, |event| {
-        println!("{:?}", event);
-    });
-
-    if let Err(err) = parser.parse() {
-        eprintln!("Error: {:?}", err);
-    }
+    // let json = r#"
+    //     {
+    //         "name": "Alice",
+    //         "age": 30,
+    //         "is_active": true,
+    //         "skills": ["Rust", "C++"]
+    //     }
+    // "#;
+    //
+    // let mut parser = JsonStreamParser::new(json, |event| {
+    //     println!("{:?}", event);
+    // });
+    //
+    // if let Err(err) = parser.parse() {
+    //     eprintln!("Error: {:?}", err);
+    // }
 }
