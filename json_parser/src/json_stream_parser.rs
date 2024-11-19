@@ -93,6 +93,11 @@ where
 
     pub fn parse(&mut self, chunk: &[u8]) -> Result<(), JsonStreamParseError> {
         self.append_buffer(chunk);
+
+        if self.states.is_empty() {
+            self.skip_whitespace();
+        }
+
         self.parse_value()?;
         Ok(())
     }
@@ -121,6 +126,7 @@ where
                     Some('[') => {
                         self.states.push(ParserState::ParsingArray);
                         self.consume_char('[')?;
+                        (self.callback)(JsonEvent::StartArray);
                         self.parse_array()
                     }
                     Some('{') => {
@@ -260,8 +266,6 @@ where
 
     // TODO test
     fn parse_array(&mut self) -> Result<bool, JsonStreamParseError> {
-        (self.callback)(JsonEvent::StartArray);
-
         loop {
             self.skip_whitespace();
             if self.peek_char() == Some(']') {
@@ -485,6 +489,53 @@ mod tests {
         let literal = "56";
         let expected = OwningJsonEvent::Number(56.0);
         test_json_parser_element(literal, expected, false);
+    }
+
+    #[test]
+    fn test_json_parser_array() {
+        let json = r#"
+            [56.3, "Rust", true, false, null]
+        "#;
+
+        let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
+
+        let bytes = json.as_bytes();
+
+        let index = RefCell::new(0);
+        let get_next_idx = || {
+            let prev_index = *index.borrow();
+            *index.borrow_mut() = prev_index + 1;
+            prev_index
+        };
+
+        fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
+            assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+        }
+
+        // if chunked {
+        //     for split_at in 1..json.len() {
+        //         events.borrow_mut().clear();
+        //         println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
+        //         let mut parser = JsonStreamParser::new(|event| {
+        //             events.borrow_mut().push(event.into())
+        //         });
+        //
+        //         assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //         assert!(parser.parse(&bytes[split_at..]).is_ok());
+        //         *index.borrow_mut() = 0;
+        //         test(&events.borrow(), get_next_idx);
+        //     }
+        // }
+
+        events.borrow_mut().clear();
+
+        let mut parser = JsonStreamParser::new(|event| {
+            events.borrow_mut().push(event.into())
+        });
+        assert!(parser.parse(&bytes).is_ok());
+
+        *index.borrow_mut() = 0;
+        test(&events.borrow(), get_next_idx);
     }
 
     // TODO add test for null
