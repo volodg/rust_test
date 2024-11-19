@@ -27,7 +27,7 @@ where
     buffer: Vec<u8>,
     start_pos: usize,
     offset: usize,
-    state: ParserState, // TODO should be a stack
+    states: Vec<ParserState>,
 }
 
 // TODO:
@@ -55,7 +55,6 @@ pub enum JsonStreamParseError {
 
 #[derive(PartialEq)]
 enum ParserState {
-    Initial,
     #[allow(dead_code)]
     ParsingKey,
     ParsingString,
@@ -74,15 +73,12 @@ where
     pub fn new(callback: F) -> Self {
         // TODO: play with initial size
         let buffer = Vec::<u8>::with_capacity(1024); // 1k
-        let start_pos = 0;
-        let offset = 0;
-        let state = ParserState::Initial;
         Self {
             callback,
             buffer,
-            start_pos,
-            offset,
-            state,
+            start_pos: 0,
+            offset: 0,
+            states: vec![],
         }
     }
 
@@ -103,29 +99,29 @@ where
     }
 
     fn parse_value(&mut self) -> Result<bool, JsonStreamParseError> {
-        match self.state {
-            ParserState::Initial => {
+        let complete = match self.states.last() {
+            None => {
                 match self.peek_char() {
                     Some('n') => {
-                        self.state = ParserState::ParsingNull;
+                        self.states.push(ParserState::ParsingNull);
                         self.parse_null()
                     }
                     Some('t') => {
-                        self.state = ParserState::ParsingTrue;
+                        self.states.push(ParserState::ParsingTrue);
                         self.parse_true()
                     }
                     Some('f') => {
-                        self.state = ParserState::ParsingFalse;
+                        self.states.push(ParserState::ParsingFalse);
                         self.parse_false()
                     }
                     Some('"') => {
-                        self.state = ParserState::ParsingString;
+                        self.states.push(ParserState::ParsingString);
                         self.consume_char('"')?;
                         self.start_pos += 1;
                         self.parse_string(false)
                     }
                     Some('[') => {
-                        self.state = ParserState::ParsingArray;
+                        self.states.push(ParserState::ParsingArray);
                         self.consume_char('[')?;
                         self.start_pos += 1;
                         self.parse_array()
@@ -138,28 +134,32 @@ where
                     None => Err(JsonStreamParseError::UnexpectedEndOfInput),
                 }
             }
-            ParserState::ParsingKey => {
+            Some(ParserState::ParsingKey) => {
                 todo!()
             }
-            ParserState::ParsingString => {
+            Some(ParserState::ParsingString) => {
                 self.parse_string(false)
             }
-            ParserState::ParsingArray => {
+            Some(ParserState::ParsingArray) => {
                 self.parse_array()
             }
-            ParserState::ParsingNum => {
+            Some(ParserState::ParsingNum) => {
                 todo!()
             }
-            ParserState::ParsingTrue => {
+            Some(ParserState::ParsingTrue) => {
                 self.parse_true()
             }
-            ParserState::ParsingFalse => {
+            Some(ParserState::ParsingFalse) => {
                 self.parse_false()
             }
-            ParserState::ParsingNull => {
+            Some(ParserState::ParsingNull) => {
                 self.parse_null()
             }
+        }?;
+        if complete {
+            self.states.pop();
         }
+        Ok(complete)
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
