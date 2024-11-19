@@ -64,7 +64,6 @@ enum ParserStateElement {
     Initial,
     #[allow(dead_code)]
     ParsingKey,
-    #[allow(dead_code)]
     ParsingString,
     #[allow(dead_code)]
     ParsingNum,
@@ -114,7 +113,7 @@ where
         Ok(())
     }
 
-    fn parse_value(&mut self) -> Result<(), JsonStreamParseError> {
+    fn parse_value(&mut self) -> Result<bool, JsonStreamParseError> {
         match self.state.curr_element {
             ParserStateElement::Initial => {
                 match self.peek_char() {
@@ -131,7 +130,9 @@ where
                         self.parse_false()
                     }
                     Some('"') => {
-                        todo!() // self.parse_string(false)
+                        self.state.curr_element = ParserStateElement::ParsingString;
+                        self.consume_char('"')?;
+                        self.parse_string(false)
                     }
                     Some('[') => {
                         todo!() // self.parse_array()
@@ -148,7 +149,7 @@ where
                 todo!()
             }
             ParserStateElement::ParsingString => {
-                todo!()
+                self.parse_string(false)
             }
             ParserStateElement::ParsingNum => {
                 todo!()
@@ -165,32 +166,32 @@ where
         }
     }
 
-    fn parse_null(&mut self) -> Result<(), JsonStreamParseError> {
+    fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal("null")?;
         if complete {
             (self.callback)(JsonEvent::Null);
             self.set_start_pos(self.offset);
         }
-        Ok(())
+        Ok(complete)
     }
 
-    fn parse_true(&mut self) -> Result<(), JsonStreamParseError> {
+    fn parse_true(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal("true").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(true));
             self.set_start_pos(self.offset);
         }
-        Ok(())
+        Ok(complete)
     }
 
     #[allow(dead_code)]
-    fn parse_false(&mut self) -> Result<(), JsonStreamParseError> {
+    fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(true));
             self.set_start_pos(self.offset);
         }
-        Ok(())
+        Ok(complete)
     }
 
     // TODO review
@@ -215,31 +216,26 @@ where
     // }
 
     // TODO review
-    // fn parse_string(&mut self, is_key: bool) -> Result<(), JsonStreamParseError> {
-    //     self.consume_char('"')?;
-    //     let start = self.input.as_str();
-    //
-    //     while let Some(c) = self.next_char() {
-    //         if c == '"' {
-    //             let end = self.input.as_str();
-    //             let len = start.len() - end.len() - 1;
-    //             let text = &start[..len];
-    //
+    // TODO handle escaped characters
+    fn parse_string(&mut self, _is_key: bool) -> Result<bool, JsonStreamParseError> {
+        while let Some(c) = self.next_char() {
+            if c == '"' {
+    // TODO
     //             if is_key {
     //                 (self.callback)(JsonEvent::Key(text));
-    //             } else {
-    //                 (self.callback)(JsonEvent::String(text));
     //             }
-    //             return Ok(());
-    //         }
-    //
-    //         if c == '\\' {
-    //             self.next_char(); // Пропускаем экранированный символ
-    //         }
-    //     }
-    //
-    //     Err(JsonStreamParseError::UnexpectedEndOfString)
-    // }
+                let bytes = &self.buffer[self.state.start_pos..self.offset];
+                let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
+                (self.callback)(JsonEvent::String(slice));
+
+                return Ok(true);
+            } else {
+                self.offset += 1;
+            }
+        }
+
+        Ok(false)
+    }
 
     // TODO review
     // fn parse_array(&mut self) -> Result<(), JsonStreamParseError> {
@@ -313,7 +309,7 @@ where
         }
     }
 
-    // TODO review
+    // TODO use &[u8] with O(1) indexing for literal
     fn expect_literal(&mut self, literal: &str) -> Result<bool, JsonStreamParseError> {
         let start_pos = self.offset - self.state.start_pos;
         for expected in literal[start_pos..].chars() {
@@ -328,14 +324,13 @@ where
         Ok(true)
     }
 
-    // // TODO review
-    // fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
-    //     if self.next_char() == Some(expected) {
-    //         Ok(())
-    //     } else {
-    //         return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
-    //     }
-    // }
+    fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
+         if self.next_char() == Some(expected) {
+             Ok(())
+         } else {
+             return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+         }
+    }
 
     fn peek_char(&self) -> Option<char> {
         if self.offset < self.buffer.len() {
