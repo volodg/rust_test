@@ -53,13 +53,13 @@ pub enum JsonStreamParseError {
     InvalidNumber,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum ParserState {
     #[allow(dead_code)]
     ParsingKey,
     ParsingString,
     ParsingArray,
-    ParsingArrayEl,
+    ParsingArrayEl, // TODO delete this state?
     ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
@@ -73,12 +73,13 @@ where
     pub fn new(callback: F) -> Self {
         // TODO: play with initial size
         let buffer = Vec::<u8>::with_capacity(1024); // 1k
+        let states = Vec::<ParserState>::with_capacity(16);
         Self {
             callback,
             buffer,
             start_pos: 0,
             offset: 0,
-            states: vec![],
+            states
         }
     }
 
@@ -92,15 +93,46 @@ where
         self.start_pos = 0
     }
 
-    pub fn parse(&mut self, chunk: &[u8]) -> Result<(), JsonStreamParseError> {
+    pub fn parse(&mut self, chunk: &[u8]) -> Result<bool, JsonStreamParseError> {
         self.append_buffer(chunk);
 
         if self.states.is_empty() {
             self.skip_whitespace();
         }
 
-        self.parse_value()?;
-        Ok(())
+        let mut complete = self.parse_value()?;
+        while complete {
+            if let Some(top) = self.states.last() {
+                // ??
+                if top == &ParserState::ParsingArrayEl {
+                    self.skip_whitespace();
+
+                    if let Some(last_char) = self.peek_char() {
+                        if last_char == ',' {
+                            self.consume_char(',')?;
+                            self.start_pos = self.offset;
+                            self.skip_whitespace();
+                        } else if last_char == ']' {
+                            self.consume_char(']')?;
+                            self.skip_whitespace();
+                            self.states.pop(); // pop ParsingArrayEl
+                            self.states.pop(); // pop ParsingArray
+                            (self.callback)(JsonEvent::EndArray);
+                            continue
+                        } else {
+                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                        }
+                        complete = self.parse_value()?;
+                    } else {
+                        return Ok(false)
+                    }
+                }
+            } else {
+                return Ok(true)
+            }
+        }
+
+        Ok(complete)
     }
 
     fn parse_element(&mut self) -> Result<bool, JsonStreamParseError> {
@@ -141,7 +173,13 @@ where
                 self.parse_number(is_negative)
             }
             Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
-            None => Err(JsonStreamParseError::UnexpectedEndOfInput),
+            None => {
+                if self.offset < self.buffer.len() {
+                    Err(JsonStreamParseError::UnexpectedEndOfInput)
+                } else {
+                    Ok(false)
+                }
+            },
         }
     }
 
@@ -178,7 +216,7 @@ where
         if complete {
             self.states.pop();
         }
-        Ok(self.states.is_empty())
+        Ok(complete)
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
@@ -284,20 +322,26 @@ where
             }
 
             self.states.push(ParserState::ParsingArrayEl);
-            self.parse_value()?;
-            self.states.pop();
+            let complete = self.parse_value()?;
+            if complete {
+                self.states.pop();
 
-            self.skip_whitespace();
+                self.skip_whitespace();
 
-            if let Some(last_char) = self.peek_char() {
-                if last_char == ',' {
-                    self.consume_char(',')?;
-                    self.start_pos = self.offset;
-                } else if last_char != ']' {
-                    return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                // TODO fix code duplication
+                // TODO existing char is expected
+                if let Some(last_char) = self.peek_char() {
+                    if last_char == ',' {
+                        self.consume_char(',')?;
+                        self.start_pos = self.offset;
+                    } else if last_char != ']' {
+                        return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                    }
+                } else {
+                    break;
                 }
             } else {
-                break;
+                break
             }
         }
 
@@ -527,20 +571,22 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
             assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
             assert_eq!(&events[inc()], &OwningJsonEvent::Null);
+            assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
         }
 
-        // for split_at in 1..json.len() {
-        //     events.borrow_mut().clear();
-        //     println!("testing split at: {split_at}, '{}''{}'", &json[0..split_at], &json[split_at..]);
-        //     let mut parser = JsonStreamParser::new(|event| {
-        //         events.borrow_mut().push(event.into())
-        //     });
-        //
-        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
-        //     *index.borrow_mut() = 0;
-        //     test(&events.borrow(), get_next_idx);
-        // }
+        for split_at in 1..json.len() {
+            let split_at = 15;
+            events.borrow_mut().clear();
+            println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            let mut parser = JsonStreamParser::new(|event| {
+                events.borrow_mut().push(event.into())
+            });
+
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
 
         events.borrow_mut().clear();
 
