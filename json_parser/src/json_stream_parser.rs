@@ -377,7 +377,15 @@ mod tests {
         let mut parser = JsonStreamParser::new(|event| {
             events.push(event.into())
         });
-        assert!(parser.parse(json.as_bytes()).is_ok());
+
+        let bytes = json.as_bytes();
+
+        for split_at in 1..json.len() {
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+        }
+
+        assert!(parser.parse(bytes).is_ok());
 
         let mut index = 0;
         let mut get_next_idx = || {
