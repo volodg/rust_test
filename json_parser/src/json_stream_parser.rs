@@ -116,13 +116,11 @@ where
                     Some('"') => {
                         self.states.push(ParserState::ParsingString);
                         self.consume_char('"')?;
-                        self.start_pos += 1;
                         self.parse_string(false)
                     }
                     Some('[') => {
                         self.states.push(ParserState::ParsingArray);
                         self.consume_char('[')?;
-                        self.start_pos += 1;
                         self.parse_array()
                     }
                     Some('{') => {
@@ -132,12 +130,11 @@ where
                         let is_negative = c == '-';
                         if is_negative {
                             self.consume_char('-')?;
-                            self.start_pos += 1;
                         }
 
                         self.states.push(ParserState::ParsingNum(is_negative));
                         self.parse_number(is_negative)
-                    },
+                    }
                     Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
                     None => Err(JsonStreamParseError::UnexpectedEndOfInput),
                 }
@@ -208,7 +205,7 @@ where
                     self.next_char();
                 } else {
                     if self.states.len() == 1 { // num is a top level element
-                        return Err(JsonStreamParseError::InvalidNumber)
+                        return Err(JsonStreamParseError::InvalidNumber);
                     } else {
                         is_complete = true;
                         break;
@@ -235,7 +232,7 @@ where
                     Ok(true)
                 }
                 Err(_) => Err(JsonStreamParseError::InvalidNumber),
-            }
+            };
         }
 
         Ok(false)
@@ -245,10 +242,10 @@ where
     fn parse_string(&mut self, _is_key: bool) -> Result<bool, JsonStreamParseError> {
         while let Some(c) = self.next_char() {
             if c == '"' {
-    // TODO
-    //             if is_key {
-    //                 (self.callback)(JsonEvent::Key(text));
-    //             }
+                // TODO
+                //             if is_key {
+                //                 (self.callback)(JsonEvent::Key(text));
+                //             }
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
                 let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
                 (self.callback)(JsonEvent::String(slice));
@@ -261,27 +258,32 @@ where
         Ok(false)
     }
 
-    // TODO complete
+    // TODO test
     fn parse_array(&mut self) -> Result<bool, JsonStreamParseError> {
         (self.callback)(JsonEvent::StartArray);
 
-    //     loop {
-    //         self.skip_whitespace();
-    //         if self.peek_char() == Some(']') {
-    //             self.consume_char(']')?;
-    //             (self.callback)(JsonEvent::EndArray);
-    //             break;
-    //         }
-    //
-    //         self.parse_value()?;
-    //         self.skip_whitespace();
-    //
-    //         if self.peek_char() == Some(',') {
-    //             self.consume_char(',')?;
-    //         } else if self.peek_char() != Some(']') {
-    //             return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
-    //         }
-    //     }
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                self.consume_char(']')?;
+                (self.callback)(JsonEvent::EndArray);
+                return Ok(true);
+            }
+
+            self.parse_value()?;
+            self.skip_whitespace();
+
+            if let Some(last_char) = self.peek_char() {
+                if last_char == ',' {
+                    self.consume_char(',')?;
+                    self.start_pos = self.offset;
+                } else if last_char != ']' {
+                    return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                }
+            } else {
+                break;
+            }
+        }
 
         Ok(false)
     }
@@ -345,11 +347,12 @@ where
     }
 
     fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
-         if self.next_char() == Some(expected) {
-             Ok(())
-         } else {
-             return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
-         }
+        if self.next_char() == Some(expected) {
+            self.start_pos += 1;
+            Ok(())
+        } else {
+            return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+        }
     }
 
     fn peek_char(&self) -> Option<char> {
