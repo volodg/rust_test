@@ -1,13 +1,21 @@
 #[derive(Debug)]
 pub enum JsonEvent<'a> {
     Null,
+    #[allow(dead_code)]
     Bool(bool),
+    #[allow(dead_code)]
     Number(f64),
+    #[allow(dead_code)]
     String(&'a str),
+    #[allow(dead_code)]
     StartObject,
+    #[allow(dead_code)]
     EndObject,
+    #[allow(dead_code)]
     StartArray,
+    #[allow(dead_code)]
     EndArray,
+    #[allow(dead_code)]
     Key(&'a str),
 }
 
@@ -30,6 +38,7 @@ where
 #[derive(Debug)]
 pub enum JsonStreamParseError {
     UnexpectedEndOfInput,
+    #[allow(dead_code)]
     UnexpectedEndOfString,
     #[allow(dead_code)]
     UnexpectedChar(char),
@@ -40,6 +49,7 @@ pub enum JsonStreamParseError {
     #[allow(dead_code)]
     InvalidLiteral(String),
     InvalidBoolean,
+    #[allow(dead_code)]
     InvalidNumber,
 }
 
@@ -52,9 +62,13 @@ struct ParserState {
 
 enum ParserStateElement {
     Initial,
+    #[allow(dead_code)]
     ParsingKey,
+    #[allow(dead_code)]
     ParsingString,
+    #[allow(dead_code)]
     ParsingNum,
+    #[allow(dead_code)]
     ParsingBool,
     ParsingNull,
 }
@@ -64,7 +78,8 @@ where
     F: FnMut(JsonEvent),
 {
     pub fn new(callback: F) -> Self {
-        let mut buffer = Vec::<u8>::with_capacity(1024); // 1k
+        // TODO: play with initial size
+        let buffer = Vec::<u8>::with_capacity(1024); // 1k
         let offset = 0;
         let state = ParserState {
             start_pos: 0,
@@ -163,6 +178,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn parse_false(&mut self) -> Result<(), JsonStreamParseError> {
         let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
@@ -337,6 +353,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use super::*;
 
     #[derive(Debug, PartialEq)]
@@ -372,29 +389,39 @@ mod tests {
     fn test_json_parser_null() {
         let json = "null";
 
-        let mut events: Vec<OwningJsonEvent> = vec![];
+        let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
 
         let mut parser = JsonStreamParser::new(|event| {
-            events.push(event.into())
+            events.borrow_mut().push(event.into())
         });
 
         let bytes = json.as_bytes();
 
-        for split_at in 1..json.len() {
-            assert!(parser.parse(&bytes[0..split_at]).is_ok());
-            assert!(parser.parse(&bytes[split_at..]).is_ok());
-        }
-
-        assert!(parser.parse(bytes).is_ok());
-
-        let mut index = 0;
-        let mut get_next_idx = || {
-            let result = index;
-            index += 1;
-            result
+        let index = RefCell::new(0);
+        let get_next_idx = || {
+            let prev_index = *index.borrow();
+            *index.borrow_mut() = prev_index + 1;
+            prev_index
         };
 
-        assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Null);
+        fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
+            assert_eq!(&events[inc()], &OwningJsonEvent::Null);
+        }
+
+        for split_at in 1..json.len() {
+            events.borrow_mut().clear();
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
+
+        events.borrow_mut().clear();
+
+        assert!(parser.parse(&bytes).is_ok());
+
+        *index.borrow_mut() = 0;
+        test(&events.borrow(), get_next_idx);
     }
 
     // TODO add test for null
