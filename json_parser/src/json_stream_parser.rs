@@ -62,7 +62,8 @@ where
     fn parse_value(&mut self) -> Result<(), JsonStreamParseError> {
         match self.peek_char() {
             Some('n') => self.parse_null(),
-            Some('t') | Some('f') => self.parse_bool(),
+            Some('t') => self.parse_true(),
+            Some('f') => self.parse_false(),
             Some('"') => self.parse_string(false),
             Some('[') => self.parse_array(),
             Some('{') => self.parse_object(),
@@ -78,12 +79,17 @@ where
         Ok(())
     }
 
-    // TODO review
-    fn parse_bool(&mut self) -> Result<(), JsonStreamParseError> {
+    fn parse_true(&mut self) -> Result<(), JsonStreamParseError> {
         if self.expect_literal("true").is_ok() {
             (self.callback)(JsonEvent::Bool(true));
             Ok(())
-        } else if self.expect_literal("false").is_ok() {
+        } else {
+            Err(JsonStreamParseError::InvalidBoolean)
+        }
+    }
+
+    fn parse_false(&mut self) -> Result<(), JsonStreamParseError> {
+        if self.expect_literal("false").is_ok() {
             (self.callback)(JsonEvent::Bool(false));
             Ok(())
         } else {
@@ -247,6 +253,7 @@ mod tests {
             "name": "Alice",
             "age": 30,
             "is_active": true,
+            "married": false,
             "skills": ["Rust", "C++"]
         }
     "#;
@@ -304,6 +311,9 @@ mod tests {
 
         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("is_active".to_string()));
         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(true));
+
+        assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("married".to_string()));
+        assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(false));
 
         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("skills".to_string()));
 
