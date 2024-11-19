@@ -56,7 +56,6 @@ enum ParserState {
     ParsingKey,
     ParsingString,
     ParsingArray,
-    ParsingArrayEl, // TODO delete this state?
     ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
@@ -101,7 +100,7 @@ where
         while complete {
             if let Some(top) = self.states.last() {
                 // ??
-                if top == &ParserState::ParsingArrayEl {
+                if top == &ParserState::ParsingArray {
                     self.skip_whitespace();
 
                     if let Some(last_char) = self.peek_char() {
@@ -112,7 +111,6 @@ where
                         } else if last_char == ']' {
                             self.consume_char(']')?;
                             self.skip_whitespace();
-                            self.states.pop(); // pop ParsingArrayEl
                             self.states.pop(); // pop ParsingArray
                             (self.callback)(JsonEvent::EndArray);
                             continue;
@@ -185,7 +183,7 @@ where
             None => {
                 self.parse_element()
             }
-            Some(ParserState::ParsingArrayEl) => {
+            Some(ParserState::ParsingArray) => {
                 // TODO fix code duplications
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
@@ -193,6 +191,12 @@ where
                         self.consume_char(',')?;
                         self.start_pos = self.offset;
                         self.skip_whitespace();
+                    } else if last_char == ']' {
+                        self.consume_char(']')?;
+                        self.skip_whitespace();
+                        self.states.pop(); // pop ParsingArray
+                        (self.callback)(JsonEvent::EndArray);
+                        return Ok(true);
                     }
                 }
                 self.parse_element()
@@ -202,9 +206,6 @@ where
             }
             Some(ParserState::ParsingString) => {
                 self.parse_string(false)
-            }
-            Some(ParserState::ParsingArray) => {
-                self.parse_array()
             }
             Some(ParserState::ParsingNum(negative)) => {
                 self.parse_number(*negative)
@@ -325,11 +326,8 @@ where
                 return Ok(true);
             }
 
-            self.states.push(ParserState::ParsingArrayEl);
             let complete = self.parse_value()?;
             if complete {
-                self.states.pop();
-
                 self.skip_whitespace();
 
                 // TODO fix code duplication
