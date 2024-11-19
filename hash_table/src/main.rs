@@ -15,11 +15,6 @@ fn main() -> io::Result<()> {
     let max_size = 50;
     let mut data_set = FixedHashTable::<String, usize>::new(max_size);
 
-    let mut data_set2 = HashMap::<String, usize>::new();
-    data_set2.insert("1".to_string(), 2);
-    data_set2.insert("3".to_string(), 3);
-    println!("test: {:?}", data_set2);
-
     for line in reader.lines() {
         let line = line?;
         let words: Vec<&str> = line.split_whitespace().collect();
@@ -41,7 +36,7 @@ fn main() -> io::Result<()> {
         }
     }
 
-    println!("test: {:?}", data_set);
+    println!("data_set: {:?}", data_set);
 
     Ok(())
 }

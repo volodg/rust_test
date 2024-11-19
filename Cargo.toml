@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["hash_table"]
+members = [
+    "hash_table",
+    "json_parser"
+]

@@ -22,3 +22,4 @@ Cargo.lock
 /.idea/
 **/.DS_Store
 /hash_table/.idea/
+/json_parser/.idea/
