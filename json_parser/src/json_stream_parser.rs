@@ -59,6 +59,7 @@ enum ParserState {
     ParsingKey,
     ParsingString,
     ParsingArray,
+    ParsingArrayEl,
     ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
@@ -102,48 +103,55 @@ where
         Ok(())
     }
 
+    fn parse_element(&mut self) -> Result<bool, JsonStreamParseError> {
+        match self.peek_char() {
+            Some('n') => {
+                self.states.push(ParserState::ParsingNull);
+                self.parse_null()
+            }
+            Some('t') => {
+                self.states.push(ParserState::ParsingTrue);
+                self.parse_true()
+            }
+            Some('f') => {
+                self.states.push(ParserState::ParsingFalse);
+                self.parse_false()
+            }
+            Some('"') => {
+                self.states.push(ParserState::ParsingString);
+                self.consume_char('"')?;
+                self.parse_string(false)
+            }
+            Some('[') => {
+                self.states.push(ParserState::ParsingArray);
+                self.consume_char('[')?;
+                (self.callback)(JsonEvent::StartArray);
+                self.parse_array()
+            }
+            Some('{') => {
+                todo!() // self.parse_object()
+            }
+            Some(c) if c.is_digit(10) || c == '-' => {
+                let is_negative = c == '-';
+                if is_negative {
+                    self.consume_char('-')?;
+                }
+
+                self.states.push(ParserState::ParsingNum(is_negative));
+                self.parse_number(is_negative)
+            }
+            Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
+            None => Err(JsonStreamParseError::UnexpectedEndOfInput),
+        }
+    }
+
     fn parse_value(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = match self.states.last() {
             None => {
-                match self.peek_char() {
-                    Some('n') => {
-                        self.states.push(ParserState::ParsingNull);
-                        self.parse_null()
-                    }
-                    Some('t') => {
-                        self.states.push(ParserState::ParsingTrue);
-                        self.parse_true()
-                    }
-                    Some('f') => {
-                        self.states.push(ParserState::ParsingFalse);
-                        self.parse_false()
-                    }
-                    Some('"') => {
-                        self.states.push(ParserState::ParsingString);
-                        self.consume_char('"')?;
-                        self.parse_string(false)
-                    }
-                    Some('[') => {
-                        self.states.push(ParserState::ParsingArray);
-                        self.consume_char('[')?;
-                        (self.callback)(JsonEvent::StartArray);
-                        self.parse_array()
-                    }
-                    Some('{') => {
-                        todo!() // self.parse_object()
-                    }
-                    Some(c) if c.is_digit(10) || c == '-' => {
-                        let is_negative = c == '-';
-                        if is_negative {
-                            self.consume_char('-')?;
-                        }
-
-                        self.states.push(ParserState::ParsingNum(is_negative));
-                        self.parse_number(is_negative)
-                    }
-                    Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
-                    None => Err(JsonStreamParseError::UnexpectedEndOfInput),
-                }
+                self.parse_element()
+            }
+            Some(ParserState::ParsingArrayEl) => {
+                self.parse_element()
             }
             Some(ParserState::ParsingKey) => {
                 todo!()
@@ -195,7 +203,7 @@ where
     fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
-            (self.callback)(JsonEvent::Bool(true));
+            (self.callback)(JsonEvent::Bool(false));
             self.start_pos = self.offset;
         }
         Ok(complete)
@@ -270,11 +278,15 @@ where
             self.skip_whitespace();
             if self.peek_char() == Some(']') {
                 self.consume_char(']')?;
+                self.states.pop();
                 (self.callback)(JsonEvent::EndArray);
                 return Ok(true);
             }
 
+            self.states.push(ParserState::ParsingArrayEl);
             self.parse_value()?;
+            self.states.pop();
+
             self.skip_whitespace();
 
             if let Some(last_char) = self.peek_char() {
@@ -473,7 +485,7 @@ mod tests {
     #[test]
     fn test_json_parser_false() {
         let literal = "false";
-        let expected = OwningJsonEvent::Bool(true);
+        let expected = OwningJsonEvent::Bool(false);
         test_json_parser_element(literal, expected, true);
     }
 
@@ -510,21 +522,24 @@ mod tests {
 
         fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
             assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+            assert_eq!(&events[inc()], &OwningJsonEvent::Number(56.3));
+            assert_eq!(&events[inc()], &OwningJsonEvent::String("Rust".into()));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Null);
         }
 
-        // if chunked {
-        //     for split_at in 1..json.len() {
-        //         events.borrow_mut().clear();
-        //         println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
-        //         let mut parser = JsonStreamParser::new(|event| {
-        //             events.borrow_mut().push(event.into())
-        //         });
+        // for split_at in 1..json.len() {
+        //     events.borrow_mut().clear();
+        //     println!("testing split at: {split_at}, '{}''{}'", &json[0..split_at], &json[split_at..]);
+        //     let mut parser = JsonStreamParser::new(|event| {
+        //         events.borrow_mut().push(event.into())
+        //     });
         //
-        //         assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        //         assert!(parser.parse(&bytes[split_at..]).is_ok());
-        //         *index.borrow_mut() = 0;
-        //         test(&events.borrow(), get_next_idx);
-        //     }
+        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
+        //     *index.borrow_mut() = 0;
+        //     test(&events.borrow(), get_next_idx);
         // }
 
         events.borrow_mut().clear();
@@ -537,6 +552,8 @@ mod tests {
         *index.borrow_mut() = 0;
         test(&events.borrow(), get_next_idx);
     }
+
+    // TODO test parse empty array
 
     // TODO add test for null
     #[test]
