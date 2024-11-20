@@ -813,22 +813,19 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        // println!("json.len(): {}", json.len()); // 208
-        // for split_at in 1..172 {
-        //     events.borrow_mut().clear();
-        //     // let split_at = 172;
-        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-        //     let mut parser = JsonStreamParser::new(|event| {
-        //         println!("event: {:?}", &event);
-        //         events.borrow_mut().push(event.into());
-        //     });
-        //
-        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        //     parser.print_rem();
-        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
-        //     *index.borrow_mut() = 0;
-        //     test(&events.borrow(), get_next_idx);
-        //}
+        for split_at in 1..json.len() {
+            events.borrow_mut().clear();
+            // Debug: println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            let mut parser = JsonStreamParser::new(|event| {
+                events.borrow_mut().push(event.into());
+            });
+
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            parser.print_rem();
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
 
         events.borrow_mut().clear();
 
