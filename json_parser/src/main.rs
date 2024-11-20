@@ -22,8 +22,9 @@ mod json_stream_parser;
 // 3. Generate test data
 // 4. play with initial vector sizes "Vec::<u8>::with_capacity(1024); // 1k"
 
+#[derive(Debug)]
 struct Statistic {
-    last_price: u64,
+    last_price: f64,
     last_qty: u64,
     total_volume: u64,
     total_amount: u64,
@@ -62,30 +63,69 @@ fn producer(tx: Sender<Vec<u8>>, file_path: &str, buffer_size: usize) -> io::Res
 }
 
 fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
-    // struct Statistic {
-    //     last_price: u64, // last "priceChange": "-16.2038"
-    //     last_qty: u64, // last "lastQty": "1000",
-    //     total_volume: u64, // "volume": "5",
-    //     total_amount: u64, // "amount": "1",
-    //     max_bid_price: f64, // "bidPrice":"999.34",
-    //     min_ask_price: f64, // "askPrice":"1000.23",
-    //     total_trade_count: u64, //  "tradeCount": 5,
-    // }
+    enum CurrentField {
+        Unknown,
+        LastPrice,
+        LastQty,
+        TotalVolume,
+        TotalAmount,
+        MaxBidPrice,
+        MinAskPrice,
+        TotalTradeCount,
+    }
+
+
+    let mut current_field = CurrentField::Unknown;
+    let mut statistic = Statistic {
+        last_price: 0.0, // last "lastPrice": "-16.2038"
+        last_qty: 0, // last "lastQty": "1000",
+        total_volume: 0, // "volume": "5",
+        total_amount: 0, // "amount": "1",
+        max_bid_price: f64::MIN, // "bidPrice":"999.34",
+        min_ask_price: f64::MAX, // "askPrice":"1000.23",
+        total_trade_count: 0, //  "tradeCount": 5,
+    };
 
     let mut parser = JsonStreamParser::new(|event| match event {
-        JsonEvent::Bool(value) => {
-            println!("event with bool {:?}", value)
-        }
         JsonEvent::Number(value) => {
-            () // println!("event with float {:?}", value)
+            match current_field {
+                CurrentField::LastPrice => (),
+                CurrentField::LastQty => (),
+                CurrentField::TotalVolume => (),
+                CurrentField::TotalAmount => (),
+                CurrentField::MaxBidPrice => (),
+                CurrentField::MinAskPrice => (),
+                CurrentField::TotalTradeCount => (),
+                CurrentField::Unknown => (),
+            };
         }
         JsonEvent::String(value) => {
-            () // println!("event with string {:?}", value)
+            match current_field {
+                CurrentField::LastPrice => {
+                    statistic.last_price = value.parse().expect("valid num")
+                },
+                CurrentField::LastQty => (),
+                CurrentField::TotalVolume => (),
+                CurrentField::TotalAmount => (),
+                CurrentField::MaxBidPrice => (),
+                CurrentField::MinAskPrice => (),
+                CurrentField::TotalTradeCount => (),
+                CurrentField::Unknown => (),
+            };
         }
         JsonEvent::Key(value) => {
-            () // println!("event with string key {:?}", value)
+            current_field = match value {
+                "lastPrice" => CurrentField::LastPrice,
+                "lastQty" => CurrentField::LastQty,
+                "volume" => CurrentField::TotalVolume,
+                "amount" => CurrentField::TotalAmount,
+                "bidPrice" => CurrentField::MaxBidPrice,
+                "askPrice" => CurrentField::MinAskPrice,
+                "total_trade_count" => CurrentField::TotalTradeCount,
+                _ => CurrentField::Unknown,
+            };
         }
-        _ => (), // println!("event {:?}", event),
+        _ => (),
     });
 
     while let Ok(chunk) = rx.recv() {
@@ -93,6 +133,8 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
             eprintln!("Error: {:?}", err);
         }
     }
+
+    println!("statistic: {:?}", statistic)
 }
 
 fn main() {
