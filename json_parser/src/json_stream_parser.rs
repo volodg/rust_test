@@ -158,48 +158,10 @@ where
                 self.parse_element(false)
             }
             Some(ParserState::ParsingArray) => {
-                self.skip_whitespace();
-                if let Some(last_char) = self.peek_char() {
-                    if last_char == ',' {
-                        self.unsafe_consume_one_char();
-                        self.start_pos = self.offset;
-                        self.skip_whitespace();
-                        self.parse_array()
-                    } else {
-                        self.parse_array()
-                    }
-                } else {
-                    Ok(false)
-                }
+                self.parse_array()
             }
             Some(&ParserState::ParsingObject(expects_key)) => {
-                // TODO fix code duplications
-                self.skip_whitespace();
-                if let Some(last_char) = self.peek_char() {
-                    if last_char == '}' {
-                        self.parse_object(expects_key)
-                    } else {
-                        if last_char == ':' || last_char == ',' {
-                            self.unsafe_consume_one_char();
-                            self.start_pos = self.offset;
-                            self.skip_whitespace();
-                        }
-
-                        let complete = self.parse_element(expects_key)?;
-
-                        // TODO cleanup
-                        if complete {
-                            self.states.pop(); // el
-                            self.states.pop(); // obj
-                            self.states.push(ParserState::ParsingObject(!expects_key));
-                            self.states.push(ParserState::ParsingObjectKey); // will be removed
-                        }
-
-                        Ok(complete)
-                    }
-                } else {
-                    Ok(false)
-                }
+                self.parse_object(expects_key)
             }
             Some(ParserState::ParsingObjectKey) => {
                 let complete = self.parse_string(true)?;
@@ -351,20 +313,24 @@ where
                 return Ok(true);
             }
 
-            let complete = self.parse_element(false)?;
-            if complete {
-                self.states.pop();
-                self.skip_whitespace();
+            if let Some(last_char) = self.peek_char() {
+                if last_char == ',' {
+                    self.unsafe_consume_one_char();
+                    self.start_pos = self.offset;
+                    self.skip_whitespace();
+                }
 
-                // TODO fix code duplication
-                // TODO existing char is expected
-                if let Some(last_char) = self.peek_char() {
-                    if last_char == ',' {
-                        self.unsafe_consume_one_char();
-                        self.start_pos = self.offset;
-                        self.skip_whitespace();
-                    } else if last_char != ']' {
-                        return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                let complete = self.parse_element(false)?;
+                if complete {
+                    self.states.pop();
+                    self.skip_whitespace();
+
+                    if let Some(last_char) = self.peek_char() {
+                        if last_char != ']' && last_char != ',' {
+                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                        }
+                    } else {
+                        break;
                     }
                 } else {
                     break;
