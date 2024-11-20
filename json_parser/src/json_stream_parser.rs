@@ -762,7 +762,6 @@ mod tests {
 
     // TODO test parse empty array
 
-    // TODO complete
     #[test]
     fn test_json_parser_object() {
         let json = r#"
@@ -838,5 +837,124 @@ mod tests {
         test(&events.borrow(), get_next_idx);
     }
 
-    // TODO add test for array of objects
+    #[test]
+    fn test_json_parser_array_of_object_with_array() {
+        let json = r#"
+            [
+                {
+                    "name": "Alice",
+                    "age": 30,
+                    "is_active": true,
+                    "married": false,
+                    "skills": ["Rust", "C++"]
+                },
+                {
+                    "name": "Vova",
+                    "age": 40,
+                    "is_active": false,
+                    "married": true,
+                    "skills": ["Rust", "C++", "Scala"]
+                }
+            ]
+        "#;
+
+        let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
+
+        let bytes = json.as_bytes();
+
+        let index = RefCell::new(0);
+        let get_next_idx = || {
+            let prev_index = *index.borrow();
+            *index.borrow_mut() = prev_index + 1;
+            prev_index
+        };
+
+        fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
+            assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+
+            // Alice
+            {
+                assert_eq!(&events[inc()], &OwningJsonEvent::StartObject);
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("name".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::String("Alice".to_string()));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Number(30.0));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("skills".to_string()));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+                {
+                    assert_eq!(&events[inc()], &OwningJsonEvent::String("Rust".to_string()));
+                    assert_eq!(&events[inc()], &OwningJsonEvent::String("C++".to_string()));
+                }
+                assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
+            }
+
+            // Vova
+            {
+                assert_eq!(&events[inc()], &OwningJsonEvent::StartObject);
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("name".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::String("Vova".to_string()));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Number(40.0));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::Key("skills".to_string()));
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+                {
+                    assert_eq!(&events[inc()], &OwningJsonEvent::String("Rust".to_string()));
+                    assert_eq!(&events[inc()], &OwningJsonEvent::String("C++".to_string()));
+                    assert_eq!(&events[inc()], &OwningJsonEvent::String("Scala".to_string()));
+
+                }
+                assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
+
+                assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
+            }
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
+        }
+
+        for split_at in 1..json.len() {
+            events.borrow_mut().clear();
+            // Debug: println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            let mut parser = JsonStreamParser::new(|event| {
+                events.borrow_mut().push(event.into());
+            });
+
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            parser.print_rem();
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
+
+        events.borrow_mut().clear();
+
+        let mut parser = JsonStreamParser::new(|event| {
+            events.borrow_mut().push(event.into())
+        });
+        assert!(parser.parse(&bytes).is_ok());
+
+        *index.borrow_mut() = 0;
+        test(&events.borrow(), get_next_idx);
+    }
 }
