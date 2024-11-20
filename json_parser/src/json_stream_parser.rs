@@ -154,7 +154,7 @@ where
                 self.states.push(ParserState::ParsingObject);
                 self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartObject);
-                self.parse_array()
+                self.parse_object()
             }
             Some(c) if c.is_digit(10) || c == '-' => {
                 let is_negative = c == '-';
@@ -324,13 +324,13 @@ where
             self.skip_whitespace();
             if self.peek_char() == Some(']') {
                 self.unsafe_consume_one_char();
-                self.states.pop();
                 (self.callback)(JsonEvent::EndArray);
                 return Ok(true);
             }
 
-            let complete = self.parse_value()?;
+            let complete = self.parse_element()?;
             if complete {
+                self.states.pop();
                 self.skip_whitespace();
 
                 // TODO fix code duplication
@@ -365,23 +365,29 @@ where
                 return Ok(true);
             }
 
-    //         self.parse_string(true)?; // Обрабатываем ключ
-    //         self.skip_whitespace();
-    //         self.consume_char(':')?;
-    //         self.skip_whitespace();
-    //
-    //         self.parse_value()?; // Обрабатываем значение
-    //         self.skip_whitespace();
-    //
-    //         if self.peek_char() == Some(',') {
-    //             self.consume_char(',')?;
-    //         } else if self.peek_char() != Some('}') {
-    //             return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
-    //         }
+            self.states.push(ParserState::ParsingKey);
+            let complete = self.parse_string(true)?; // Parse key
+            if complete {
+                self.states.pop();
+
+                self.skip_whitespace();
+                self.consume_char(':')?;
+                self.skip_whitespace();
+
+                self.parse_value()?;
+                //         self.skip_whitespace();
+                //
+                //         if self.peek_char() == Some(',') {
+                //             self.consume_char(',')?;
+                //         } else if self.peek_char() != Some('}') {
+                //             return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
+                //         }
+            } else {
+                break;
+            }
         }
-    //
-    //     Ok(())
-        todo!()
+
+        Ok(false)
     }
 
     #[allow(dead_code)]
@@ -409,6 +415,15 @@ where
             }
         }
         Ok(true)
+    }
+
+    fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
+        if self.next_char() == Some(expected) {
+            self.start_pos += 1;
+            Ok(())
+        } else {
+            return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+        }
     }
 
     fn unsafe_consume_one_char(&mut self) {
@@ -652,18 +667,18 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        // for split_at in 1..json.len() {
-        //     events.borrow_mut().clear();
-        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-        //     let mut parser = JsonStreamParser::new(|event| {
-        //         events.borrow_mut().push(event.into())
-        //     });
-        //
-        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
-        //     *index.borrow_mut() = 0;
-        //     test(&events.borrow(), get_next_idx);
-        // }
+        for split_at in 1..json.len() {
+            events.borrow_mut().clear();
+            println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            let mut parser = JsonStreamParser::new(|event| {
+                events.borrow_mut().push(event.into())
+            });
+
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
 
         events.borrow_mut().clear();
 
