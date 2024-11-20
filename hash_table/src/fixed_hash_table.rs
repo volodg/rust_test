@@ -91,6 +91,15 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
         self.hash_builder.hash_one(key) as usize % self.size
     }
 
+    fn insert_at(&mut self, index: usize, key: K, value: V) -> bool {
+        let rc_key = Rc::new(key);
+        let node = self.history.push_back(rc_key.clone());
+
+        self.table[index] = Slot::Occupied(rc_key, value, node);
+        self.count += 1;
+        return true;
+    }
+
     // TODO try to return replaced value
     pub fn insert(&mut self, key: K, value: V) -> bool {
         if self.count >= self.size {
@@ -99,14 +108,14 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
 
         let mut index = self.hash(&key);
         for _ in 0..self.size {
-            match &self.table[index] {
-                Slot::Empty | Slot::Deleted => {
-                    let rc_key = Rc::new(key);
-                    let node = self.history.push_back(rc_key.clone());
-
-                    self.table[index] = Slot::Occupied(rc_key, value, node);
-                    self.count += 1;
-                    return true;
+            let el = &self.table[index];
+            match el {
+                Slot::Deleted => {
+                    self.deleted_count -= 1;
+                    return self.insert_at(index, key, value);
+                }
+                Slot::Empty => {
+                    return self.insert_at(index, key, value);
                 }
                 Slot::Occupied(existing_key, _, prev_node) if existing_key.deref() == &key => {
                     self.history.remove(prev_node.clone());
@@ -187,7 +196,6 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
                     self.count -= 1;
                     if (self.count + self.deleted_count) as f64 >= self.size as f64 * 0.7 &&
                         self.deleted_count as f64 > self.size as f64 / 3.0 {
-                        println!("rehash !!!");
                         self.rehash();
                     }
                     return true;
