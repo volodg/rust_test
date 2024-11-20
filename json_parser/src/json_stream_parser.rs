@@ -122,7 +122,11 @@ where
                     self.skip_whitespace();
 
                     if let Some(last_char) = self.peek_char() {
-                        if last_char == ',' {
+                        if last_char == ':' {
+                            self.unsafe_consume_one_char();
+                            self.start_pos = self.offset;
+                            self.skip_whitespace();
+                        } else if last_char == ',' {
                             self.unsafe_consume_one_char();
                             self.start_pos = self.offset;
                             self.skip_whitespace();
@@ -236,7 +240,12 @@ where
                 // TODO fix code duplications
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
-                    if last_char == ',' {
+                    if last_char == ':' {
+                        self.unsafe_consume_one_char();
+                        self.start_pos = self.offset;
+                        self.skip_whitespace();
+                        self.parse_element(false)
+                    } else if last_char == ',' {
                         self.unsafe_consume_one_char();
                         self.start_pos = self.offset;
                         self.skip_whitespace();
@@ -735,12 +744,14 @@ mod tests {
 
         // for split_at in 1..json.len() {
         //     events.borrow_mut().clear();
+        //     let split_at = 14;
         //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
         //     let mut parser = JsonStreamParser::new(|event| {
         //         events.borrow_mut().push(event.into())
         //     });
         //
         //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //     parser.print_rem();
         //     assert!(parser.parse(&bytes[split_at..]).is_ok());
         //     *index.borrow_mut() = 0;
         //     test(&events.borrow(), get_next_idx);
