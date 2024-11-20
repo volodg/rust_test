@@ -14,8 +14,6 @@ pub struct DoublyLinkedList<T> {
     length: usize,
 }
 
-// TODO
-// 1. re-review all methods
 impl<T> DoublyLinkedList<T> {
     pub fn new() -> Self {
         Self {
@@ -25,7 +23,6 @@ impl<T> DoublyLinkedList<T> {
         }
     }
 
-    // TODO review
     pub fn push_back(&mut self, value: T) -> Rc<RefCell<Node<T>>> {
         let new_node = Rc::new(RefCell::new(Node {
             value,
@@ -49,7 +46,6 @@ impl<T> DoublyLinkedList<T> {
         new_node
     }
 
-    // TODO review
     pub fn pop_front(&mut self) -> Option<T> {
         self.head.take().and_then(|old_head| {
             if let Some(next) = old_head.borrow_mut().next.take() {
@@ -85,14 +81,12 @@ impl<T> DoublyLinkedList<T> {
         self.length -= 1;
     }
 
-    // TODO review
     pub fn front(&self) -> Option<Ref<T>> {
         self.head
             .as_ref()
             .map(|node| Ref::map(node.borrow(), |n| &n.value))
     }
 
-    // TODO review
     pub fn back(&self) -> Option<Ref<T>> {
         self.tail
             .as_ref()
