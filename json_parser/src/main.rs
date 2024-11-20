@@ -25,7 +25,7 @@ mod json_stream_parser;
 #[derive(Debug)]
 struct Statistic {
     last_price: f64,
-    last_qty: u64,
+    last_qty: f64,
     total_volume: u64,
     total_amount: u64,
     max_bid_price: f64,
@@ -77,8 +77,8 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
 
     let mut current_field = CurrentField::Unknown;
     let mut statistic = Statistic {
-        last_price: 0.0, // last "lastPrice": "-16.2038"
-        last_qty: 0, // last "lastQty": "1000",
+        last_price: 0.0,
+        last_qty: 0.0,
         total_volume: 0, // "volume": "5",
         total_amount: 0, // "amount": "1",
         max_bid_price: f64::MIN, // "bidPrice":"999.34",
@@ -102,9 +102,11 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
         JsonEvent::String(value) => {
             match current_field {
                 CurrentField::LastPrice => {
-                    statistic.last_price = value.parse().expect("valid num")
+                    statistic.last_price = value.parse().expect(format!("valid num: {}", value).as_str())
                 },
-                CurrentField::LastQty => (),
+                CurrentField::LastQty => {
+                    statistic.last_qty = value.parse().expect(format!("valid num: {}", value).as_str())
+                },
                 CurrentField::TotalVolume => (),
                 CurrentField::TotalAmount => (),
                 CurrentField::MaxBidPrice => (),
