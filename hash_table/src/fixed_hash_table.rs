@@ -9,10 +9,6 @@ use std::hash::{BuildHasher, Hash, RandomState};
 use std::ops::Deref;
 use std::rc::Rc;
 
-// TODO:
-// 1. Cleanup Deleted
-// 2. add rehash
-
 enum Slot<K, V> {
     Empty,
     Occupied(K, V, Rc<RefCell<doubly_linked_list::Node<K>>>),
@@ -22,9 +18,11 @@ enum Slot<K, V> {
 pub struct FixedHashTable<K, V, S = RandomState> {
     hash_builder: S,
     table: Vec<Slot<Rc<K>, V>>,
+    rehash_table: Vec<Slot<Rc<K>, V>>,
     history: DoublyLinkedList<Rc<K>>,
     size: usize,
     count: usize,
+    deleted_count: usize,
 }
 
 impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
@@ -33,13 +31,52 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
         for _ in 0..size {
             table.push(Slot::Empty)
         }
+        let mut rehash_table = Vec::with_capacity(size);
+        for _ in 0..size {
+            rehash_table.push(Slot::Empty)
+        }
         Self {
             hash_builder: Default::default(),
             table,
+            rehash_table,
             history: DoublyLinkedList::<Rc<K>>::new(),
             size,
             count: 0,
+            deleted_count: 0,
         }
+    }
+
+    // TODO: Not efficient enough, try to improve
+    pub fn rehash(&mut self) {
+        // self.rehash_table has size and all empty elements
+        std::mem::swap(&mut self.table, &mut self.rehash_table);
+
+        self.count = 0;
+        self.deleted_count = 0;
+
+        let mut tmp_rehash_table = vec![];
+        std::mem::swap(&mut tmp_rehash_table, &mut self.rehash_table);
+
+        for slot in tmp_rehash_table {
+            if let Slot::Occupied(key, value, node) = slot {
+                let mut index = self.hash(&key);
+                for _ in 0..self.size {
+                    match &self.table[index] {
+                        Slot::Empty => {
+                            self.table[index] = Slot::Occupied(key.clone(), value, node.clone());
+                            self.count += 1;
+                            break;
+                        }
+                        _ => index = (index + 1) % self.size,
+                    }
+                }
+            }
+        }
+
+        for _ in 0..self.size {
+            self.rehash_table.push(Slot::Empty)
+        }
+        assert_eq!(self.rehash_table.len(), self.size);
     }
 
     pub fn len(&self) -> usize {
@@ -146,7 +183,13 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
                     self.history.remove(node.clone());
 
                     self.table[index] = Slot::Deleted;
+                    self.deleted_count += 1;
                     self.count -= 1;
+                    if (self.count + self.deleted_count) as f64 >= self.size as f64 * 0.7 &&
+                        self.deleted_count as f64 > self.size as f64 / 3.0 {
+                        println!("rehash !!!");
+                        self.rehash();
+                    }
                     return true;
                 }
                 Slot::Empty => return false,

@@ -132,14 +132,12 @@ mod tests {
     #[test]
     fn test_remove_node() {
         let mut list = DoublyLinkedList::new();
-        {
-            let node1 = list.push_back(1);
-            let node2 = list.push_back(2);
-            let node3 = list.push_back(3);
+        _ = list.push_back(1);
+        let node2 = list.push_back(2);
+        _ = list.push_back(3);
 
-            // Remove the middle node
-            list.remove(node2);
-        }
+        // Remove the middle node
+        list.remove(node2);
         assert_eq!(list.length, 2);
 
         // Check remaining nodes
