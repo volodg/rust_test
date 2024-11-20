@@ -132,11 +132,7 @@ where
                             return Ok(false);
                         }
                     }
-                    &ParserState::ParsingObject(expect_key) => {
-                        // let expect_key = !expect_key;
-                        // self.states.pop(); // TODO modify top
-                        // self.states.push(ParserState::ParsingObject(expect_key));
-
+                    &ParserState::ParsingObject(_) => {
                         self.skip_whitespace();
 
                         if let Some(last_char) = self.peek_char() {
@@ -651,7 +647,7 @@ mod tests {
         if chunked {
             for split_at in 1..json.len() {
                 events.borrow_mut().clear();
-                println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
+                // Debug: println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
                 let mut parser = JsonStreamParser::new(|event| {
                     events.borrow_mut().push(event.into())
                 });
@@ -738,7 +734,7 @@ mod tests {
 
         for split_at in 1..json.len() {
             events.borrow_mut().clear();
-            println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            // Debug: println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
             let mut parser = JsonStreamParser::new(|event| {
                 events.borrow_mut().push(event.into())
             });
@@ -820,7 +816,6 @@ mod tests {
             });
 
             assert!(parser.parse(&bytes[0..split_at]).is_ok());
-            parser.print_rem();
             assert!(parser.parse(&bytes[split_at..]).is_ok());
             *index.borrow_mut() = 0;
             test(&events.borrow(), get_next_idx);
@@ -941,7 +936,6 @@ mod tests {
             });
 
             assert!(parser.parse(&bytes[0..split_at]).is_ok());
-            parser.print_rem();
             assert!(parser.parse(&bytes[split_at..]).is_ok());
             *index.borrow_mut() = 0;
             test(&events.borrow(), get_next_idx);
