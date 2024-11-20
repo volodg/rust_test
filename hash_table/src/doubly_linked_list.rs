@@ -16,7 +16,6 @@ pub struct DoublyLinkedList<T> {
 
 // TODO
 // 1. re-review all methods
-// 2. add unit tests
 impl<T> DoublyLinkedList<T> {
     pub fn new() -> Self {
         Self {
