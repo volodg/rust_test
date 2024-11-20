@@ -52,6 +52,7 @@ enum ParserState {
     ParsingArray,
     ParsingObject(bool), // true - expects key
     ParsingObjectKey,
+    ParsingObjectValue,
     ParsingObjectColon,
     ParsingNum(bool), // true - is negative
     ParsingTrue,
@@ -288,11 +289,14 @@ where
                 if complete {
                     self.states.pop();
                     self.states.pop();
-                    self.states.push(ParserState::ParsingObject(false));
+                    self.states.push(ParserState::ParsingObject(false)); // expects value
                     self.states.push(ParserState::ParsingObjectKey); // will be removed
                 }
 
                 Ok(complete)
+            }
+            Some(ParserState::ParsingObjectValue) => {
+                todo!()
             }
             Some(ParserState::ParsingObjectColon) => {
                 let result = self.consume_char(':')?;
@@ -317,6 +321,14 @@ where
         }?;
         if complete {
             self.states.pop();
+
+            if let Some(top) = self.states.last() {
+                if top == &ParserState::ParsingObjectValue {
+                    self.states.pop(); // remove ParsingObjectValue
+                    self.states.pop(); // TODO replace
+                    self.states.push(ParserState::ParsingObject(true)); // expects key
+                }
+            }
         }
         Ok(complete)
     }
@@ -475,11 +487,14 @@ where
                     self.states.pop();
                     self.skip_whitespace();
 
+                    // ParsingObjectValue
+                    self.states.push(ParserState::ParsingObjectValue);
                     let complete = self.parse_element(false)?;
 
                     if complete {
-                        self.states.pop();
-                        self.states.pop();  // TODO modify top
+                        self.states.pop(); // pop el
+                        self.states.pop(); // pop ParsingObjectValue
+                        self.states.pop(); // TODO modify top
                         self.states.push(ParserState::ParsingObject(true));
                         self.skip_whitespace();
 
@@ -791,9 +806,9 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        //for split_at in 1..json.len() {
+        // for split_at in 1..json.len() {
         //     events.borrow_mut().clear();
-        //     let split_at = 14;
+        //     let split_at = 40;
         //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
         //     let mut parser = JsonStreamParser::new(|event| {
         //         println!("event: {:?}", &event);
@@ -805,7 +820,7 @@ mod tests {
         //     assert!(parser.parse(&bytes[split_at..]).is_ok());
         //     *index.borrow_mut() = 0;
         //     test(&events.borrow(), get_next_idx);
-        //}
+        // }
 
         events.borrow_mut().clear();
 
