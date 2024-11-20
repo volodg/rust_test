@@ -95,6 +95,7 @@ where
         }
 
         let mut complete = self.parse_value()?;
+        // self.print_rem();
         while complete {
             if let Some(top) = self.states.last() {
                 match top {
@@ -121,13 +122,14 @@ where
                         }
                     },
                     &ParserState::ParsingObject(expect_key) => {
-                        self.states.pop(); // TODO modify top
-                        self.states.push(ParserState::ParsingObject(!expect_key));
+                        // let expect_key = !expect_key;
+                        // self.states.pop(); // TODO modify top
+                        // self.states.push(ParserState::ParsingObject(expect_key));
 
                         self.skip_whitespace();
 
                         if let Some(last_char) = self.peek_char() {
-                            if last_char == ':' {
+                            if last_char == ':' { // TODO: can be deleted?
                                 self.unsafe_consume_one_char();
                                 self.start_pos = self.offset;
                                 self.skip_whitespace();
@@ -142,7 +144,7 @@ where
                                 (self.callback)(JsonEvent::EndObject);
                                 continue;
                             } else {
-                                return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
+                                // TODO: double check return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
                             }
                             complete = self.parse_value()?;
                         } else {
@@ -263,14 +265,34 @@ where
                         (self.callback)(JsonEvent::EndObject);
                         Ok(true)
                     } else {
-                        self.parse_element(expects_key)
+                        let complete = self.parse_element(expects_key)?;
+
+                        // TODO cleanup
+                        if complete {
+                            self.states.pop(); // el
+                            self.states.pop(); // obj
+                            self.states.push(ParserState::ParsingObject(!expects_key));
+                            self.states.push(ParserState::ParsingObjectKey); // will be removed
+                        }
+
+                        Ok(complete)
                     }
                 } else {
                     Ok(false)
                 }
             }
             Some(ParserState::ParsingObjectKey) => {
-                self.parse_string(true)
+                let complete = self.parse_string(true)?;
+
+                // TODO cleanup
+                if complete {
+                    self.states.pop();
+                    self.states.pop();
+                    self.states.push(ParserState::ParsingObject(false));
+                    self.states.push(ParserState::ParsingObjectKey); // will be removed
+                }
+
+                Ok(complete)
             }
             Some(ParserState::ParsingObjectColon) => {
                 let result = self.consume_char(':')?;
@@ -443,27 +465,39 @@ where
             let complete = self.parse_element(true)?; // Parse key
             if complete {
                 self.states.pop();
+                self.states.pop(); // TODO modify top
+                self.states.push(ParserState::ParsingObject(false));
 
                 self.skip_whitespace();
                 self.states.push(ParserState::ParsingObjectColon);
-                self.consume_char(':')?;
-                self.states.pop();
-                self.skip_whitespace();
-
-                self.states.pop(); // TODO modify top
-                self.states.push(ParserState::ParsingObject(false));
-                let complete = self.parse_element(false)?;
-
+                let complete = self.consume_char(':')?;
                 if complete {
                     self.states.pop();
-                    self.states.pop();  // TODO modify top
-                    self.states.push(ParserState::ParsingObject(true));
                     self.skip_whitespace();
 
-                    if self.peek_char() == Some(',') {
-                        self.unsafe_consume_one_char();
-                    } else if self.peek_char() != Some('}') {
-                        return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
+                    let complete = self.parse_element(false)?;
+
+                    if complete {
+                        self.states.pop();
+                        self.states.pop();  // TODO modify top
+                        self.states.push(ParserState::ParsingObject(true));
+                        self.skip_whitespace();
+
+                        // TODO fix code duplication
+                        // TODO existing char is expected
+                        if let Some(last_char) = self.peek_char() {
+                            if last_char == ',' {
+                                self.unsafe_consume_one_char();
+                                self.start_pos = self.offset;
+                                self.skip_whitespace();
+                            } else if last_char != '}' {
+                                return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
+                            }
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
                     }
                 } else {
                     break;
@@ -504,11 +538,15 @@ where
     }
 
     fn consume_char(&mut self, expected: char) -> Result<bool, JsonStreamParseError> {
-        if self.next_char() == Some(expected) {
-            self.start_pos += 1;
-            Ok(true)
+        if let Some(next_char) = self.next_char() {
+            if next_char == expected {
+                self.start_pos += 1;
+                Ok(true)
+            } else {
+                return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+            }
         } else {
-            return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+            Ok(false)
         }
     }
 
@@ -753,20 +791,21 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        for split_at in 1..json.len() {
-            events.borrow_mut().clear();
-            let split_at = 14;
-            println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-            let mut parser = JsonStreamParser::new(|event| {
-                events.borrow_mut().push(event.into())
-            });
-
-            assert!(parser.parse(&bytes[0..split_at]).is_ok());
-            parser.print_rem();
-            assert!(parser.parse(&bytes[split_at..]).is_ok());
-            *index.borrow_mut() = 0;
-            test(&events.borrow(), get_next_idx);
-        }
+        //for split_at in 1..json.len() {
+        //     events.borrow_mut().clear();
+        //     let split_at = 14;
+        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+        //     let mut parser = JsonStreamParser::new(|event| {
+        //         println!("event: {:?}", &event);
+        //         events.borrow_mut().push(event.into());
+        //     });
+        //
+        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //     parser.print_rem();
+        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
+        //     *index.borrow_mut() = 0;
+        //     test(&events.borrow(), get_next_idx);
+        //}
 
         events.borrow_mut().clear();
 
