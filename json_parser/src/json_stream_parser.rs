@@ -130,7 +130,7 @@ where
                 self.states.push(ParserState::ParsingObject(true));
                 self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartObject);
-                self.parse_object()
+                self.parse_object(true)
             }
             Some(c) if c.is_digit(10) || c == '-' => {
                 let is_negative = c == '-';
@@ -158,16 +158,12 @@ where
                 self.parse_element(false)
             }
             Some(ParserState::ParsingArray) => {
-                // TODO fix code duplications
-                // self.parse_array()
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
                     if last_char == ',' {
                         self.unsafe_consume_one_char();
                         self.start_pos = self.offset;
                         self.skip_whitespace();
-                        self.parse_array()
-                    } else if last_char == ']' {
                         self.parse_array()
                     } else {
                         self.parse_array()
@@ -181,7 +177,7 @@ where
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
                     if last_char == '}' {
-                        self.parse_object()
+                        self.parse_object(expects_key)
                     } else {
                         if last_char == ':' || last_char == ',' {
                             self.unsafe_consume_one_char();
@@ -389,7 +385,9 @@ where
     }
 
     // TODO review
-    fn parse_object(&mut self) -> Result<bool, JsonStreamParseError> {
+    fn parse_object(&mut self, expects_key: bool) -> Result<bool, JsonStreamParseError> {
+        let mut expects_key = expects_key;
+
         loop {
             self.skip_whitespace();
             if self.peek_char() == Some('}') {
@@ -398,51 +396,43 @@ where
                 return Ok(true);
             }
 
-            let complete = self.parse_element(true)?; // Parse key
-            if complete {
-                self.states.pop();
-                self.states.pop(); // TODO modify top
-                self.states.push(ParserState::ParsingObject(false));
+            if let Some(last_char) = self.peek_char() {
+                if last_char == ':' || last_char == ',' {
+                    self.unsafe_consume_one_char();
+                    self.start_pos = self.offset;
+                    self.skip_whitespace();
+                }
 
-                self.skip_whitespace();
-                self.states.push(ParserState::ParsingObjectColon);
-                let complete = self.consume_char(':')?;
+                if !expects_key {
+                    self.states.push(ParserState::ParsingObjectValue);
+                }
+
+                let complete = self.parse_element(expects_key)?; // Parse key or value
                 if complete {
                     self.states.pop();
-                    self.skip_whitespace();
-
-                    // ParsingObjectValue
-                    self.states.push(ParserState::ParsingObjectValue);
-                    let complete = self.parse_element(false)?;
-
-                    if complete {
-                        self.states.pop(); // pop el
+                    if !expects_key {
                         self.states.pop(); // pop ParsingObjectValue
-                        self.states.pop(); // TODO modify top
-                        self.states.push(ParserState::ParsingObject(true));
-                        self.skip_whitespace();
+                    }
+                    self.states.pop(); // TODO modify top
+                    expects_key = !expects_key;
+                    self.states.push(ParserState::ParsingObject(expects_key));
 
-                        // TODO fix code duplication
-                        // TODO existing char is expected
-                        if let Some(last_char) = self.peek_char() {
-                            if last_char == ',' {
-                                self.unsafe_consume_one_char();
-                                self.start_pos = self.offset;
-                                self.skip_whitespace();
-                            } else if last_char != '}' {
-                                return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
-                            }
+                    if !expects_key {
+                        self.skip_whitespace();
+                        self.states.push(ParserState::ParsingObjectColon);
+                        let complete = self.consume_char(':')?;
+                        if complete {
+                            self.states.pop();
+                            self.skip_whitespace();
                         } else {
-                            break;
+                            break
                         }
-                    } else {
-                        break;
                     }
                 } else {
-                    break;
+                    break
                 }
             } else {
-                break;
+                break
             }
         }
 
