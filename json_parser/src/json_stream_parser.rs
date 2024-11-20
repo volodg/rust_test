@@ -166,11 +166,9 @@ where
             Some(ParserState::ParsingObjectKey) => {
                 let complete = self.parse_string(true)?;
 
-                // TODO cleanup
                 if complete {
                     self.states.pop();
-                    self.states.pop();
-                    self.states.push(ParserState::ParsingObject(false)); // expects value
+                    self.set_parsing_object_expects_key(false);
                     self.states.push(ParserState::ParsingObjectKey); // will be removed
                 }
 
@@ -207,12 +205,16 @@ where
             if let Some(top) = self.states.last() {
                 if top == &ParserState::ParsingObjectValue {
                     self.states.pop(); // remove ParsingObjectValue
-                    self.states.pop(); // TODO replace
-                    self.states.push(ParserState::ParsingObject(true)); // expects key
+                    self.set_parsing_object_expects_key(true); // expects key
                 }
             }
         }
         Ok(complete)
+    }
+
+    fn set_parsing_object_expects_key(&mut self, expects_key: bool) {
+        self.states.pop();
+        self.states.push(ParserState::ParsingObject(expects_key)); // expects value
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
@@ -379,9 +381,8 @@ where
                     if !expects_key {
                         self.states.pop(); // pop ParsingObjectValue
                     }
-                    self.states.pop(); // TODO modify top
                     expects_key = !expects_key;
-                    self.states.push(ParserState::ParsingObject(expects_key));
+                    self.set_parsing_object_expects_key(expects_key);
 
                     if !expects_key {
                         self.skip_whitespace();
