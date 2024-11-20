@@ -56,8 +56,7 @@ impl<K: Eq + Hash + Debug, V: Debug> Debug for FixedHashTable<K, V> {
     }
 }
 
-// TODO don't clone key
-impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
+impl<K: Eq + Hash, V> FixedHashTable<K, V> {
     pub fn new(size: usize) -> Self {
         let mut table = Vec::with_capacity(size);
         for _ in 0..size {
