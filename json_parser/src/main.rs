@@ -11,6 +11,12 @@ mod json_stream_parser;
 // 6. TODO try nom library instead?
 // 7. Is not complete Json standard implementation
 
+// TODO:
+// 1. measure performance
+// 2. create producer/consumer
+// 3. Generate test data
+// 4. play with initial vector sizes "Vec::<u8>::with_capacity(1024); // 1k"
+
 fn main() {
     // let json = r#"
     //     {

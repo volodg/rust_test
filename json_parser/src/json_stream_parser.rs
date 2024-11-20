@@ -1,17 +1,13 @@
 #[derive(Debug)]
 pub enum JsonEvent<'a> {
     Null,
-    #[allow(dead_code)]
     Bool(bool),
-    #[allow(dead_code)]
     Number(f64),
-    #[allow(dead_code)]
     String(&'a str),
     StartObject,
     EndObject,
     StartArray,
     EndArray,
-    #[allow(dead_code)]
     Key(&'a str),
 }
 
@@ -25,11 +21,6 @@ where
     offset: usize,
     states: Vec<ParserState>,
 }
-
-// TODO:
-// 1. measure performance
-// 2. create producer/consumer
-// 3. Generate test data
 
 #[derive(Debug)]
 pub enum JsonStreamParseError {
@@ -65,7 +56,6 @@ where
     F: FnMut(JsonEvent),
 {
     pub fn new(callback: F) -> Self {
-        // TODO: play with initial size
         let buffer = Vec::<u8>::with_capacity(1024); // 1k
         let states = Vec::<ParserState>::with_capacity(16);
         Self {
@@ -78,14 +68,17 @@ where
     }
 
     fn append_buffer(&mut self, chunk: &[u8]) {
-        let start_pos = self.start_pos;
-        self.offset = self.buffer.len() - start_pos;
-        // TODO don't drain, just append if buffer is big enough
-        self.buffer.drain(..start_pos);
+        if self.offset + chunk.len() < self.buffer.capacity() {
+            self.buffer.extend_from_slice(chunk);
+        } else {
+            let start_pos = self.start_pos;
+            self.offset = self.buffer.len() - start_pos;
+            self.buffer.drain(..start_pos);
 
-        // TODO: use custom cache friendly reallocation algorithm?
-        self.buffer.extend_from_slice(chunk);
-        self.start_pos = 0
+            // TODO: use custom cache friendly reallocation algorithm?
+            self.buffer.extend_from_slice(chunk);
+            self.start_pos = 0
+        }
     }
 
     pub fn parse(&mut self, chunk: &[u8]) -> Result<bool, JsonStreamParseError> {
