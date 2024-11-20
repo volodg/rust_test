@@ -38,16 +38,16 @@ pub enum JsonStreamParseError {
 
 #[derive(Debug, PartialEq)]
 enum ParserState {
-    ParsingString,
-    ParsingArray,
-    ParsingObject(bool), // true - expects key
-    ParsingObjectKey,
-    ParsingObjectValue,
-    ParsingObjectColon,
-    ParsingNum(bool), // true - is negative
-    ParsingTrue,
-    ParsingFalse,
-    ParsingNull,
+    StringVal,
+    Array,
+    Object(bool), // true - expects key
+    ObjectKey,
+    ObjectValue,
+    ObjectColon,
+    Num(bool), // true - is negative
+    True,
+    False,
+    Null,
 }
 
 trait ParseStrSlice {
@@ -108,35 +108,35 @@ where
     fn parse_element(&mut self, is_key: bool) -> Result<bool, JsonStreamParseError> {
         match self.peek_char() {
             Some('n') => {
-                self.states.push(ParserState::ParsingNull);
+                self.states.push(ParserState::Null);
                 self.parse_null()
             }
             Some('t') => {
-                self.states.push(ParserState::ParsingTrue);
+                self.states.push(ParserState::True);
                 self.parse_true()
             }
             Some('f') => {
-                self.states.push(ParserState::ParsingFalse);
+                self.states.push(ParserState::False);
                 self.parse_false()
             }
             Some('"') => {
                 let new_state = if is_key {
-                    ParserState::ParsingObjectKey
+                    ParserState::ObjectKey
                 } else {
-                    ParserState::ParsingString
+                    ParserState::StringVal
                 };
                 self.states.push(new_state);
                 self.unsafe_consume_one_char();
                 self.parse_string(is_key)
             }
             Some('[') => {
-                self.states.push(ParserState::ParsingArray);
+                self.states.push(ParserState::Array);
                 self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartArray);
                 self.parse_array()
             }
             Some('{') => {
-                self.states.push(ParserState::ParsingObject(true));
+                self.states.push(ParserState::Object(true));
                 self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartObject);
                 self.parse_object(true)
@@ -147,7 +147,7 @@ where
                     self.unsafe_consume_one_char();
                 }
 
-                self.states.push(ParserState::ParsingNum(is_negative));
+                self.states.push(ParserState::Num(is_negative));
                 self.parse_number(is_negative)
             }
             Some(c) => Err(JsonStreamParseError::UnexpectedChar(c)),
@@ -164,39 +164,39 @@ where
     fn parse_value(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = match self.states.last() {
             None => self.parse_element(false),
-            Some(ParserState::ParsingArray) => self.parse_array(),
-            Some(&ParserState::ParsingObject(expects_key)) => self.parse_object(expects_key),
-            Some(ParserState::ParsingObjectKey) => {
+            Some(ParserState::Array) => self.parse_array(),
+            Some(&ParserState::Object(expects_key)) => self.parse_object(expects_key),
+            Some(ParserState::ObjectKey) => {
                 let complete = self.parse_string(true)?;
 
                 if complete {
                     self.states.pop();
                     self.set_parsing_object_expects_key(false);
-                    self.states.push(ParserState::ParsingObjectKey); // will be removed
+                    self.states.push(ParserState::ObjectKey); // will be removed
                 }
 
                 Ok(complete)
             }
-            Some(ParserState::ParsingObjectValue) => {
+            Some(ParserState::ObjectValue) => {
                 self.skip_whitespace();
                 self.parse_element(false)
             }
-            Some(ParserState::ParsingObjectColon) => {
+            Some(ParserState::ObjectColon) => {
                 let result = self.consume_char(':')?;
                 self.skip_whitespace();
                 Ok(result)
             }
-            Some(ParserState::ParsingString) => self.parse_string(false),
-            Some(ParserState::ParsingNum(negative)) => self.parse_number(*negative),
-            Some(ParserState::ParsingTrue) => self.parse_true(),
-            Some(ParserState::ParsingFalse) => self.parse_false(),
-            Some(ParserState::ParsingNull) => self.parse_null(),
+            Some(ParserState::StringVal) => self.parse_string(false),
+            Some(ParserState::Num(negative)) => self.parse_number(*negative),
+            Some(ParserState::True) => self.parse_true(),
+            Some(ParserState::False) => self.parse_false(),
+            Some(ParserState::Null) => self.parse_null(),
         }?;
         if complete {
             self.states.pop();
 
             if let Some(top) = self.states.last() {
-                if top == &ParserState::ParsingObjectValue {
+                if top == &ParserState::ObjectValue {
                     self.states.pop(); // remove ParsingObjectValue
                     self.set_parsing_object_expects_key(true); // expects key
                 }
@@ -207,7 +207,7 @@ where
 
     fn set_parsing_object_expects_key(&mut self, expects_key: bool) {
         self.states.pop();
-        self.states.push(ParserState::ParsingObject(expects_key)); // expects value
+        self.states.push(ParserState::Object(expects_key)); // expects value
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
@@ -248,14 +248,12 @@ where
             if let Some(chr) = self.peek_char() {
                 if chr.is_ascii_digit() || chr == '.' || chr == '-' || chr == 'e' || chr == 'E' {
                     self.next_char();
+                } else if self.states.len() == 1 {
+                    // num is a top level element
+                    return Err(JsonStreamParseError::InvalidNumber);
                 } else {
-                    if self.states.len() == 1 {
-                        // num is a top level element
-                        return Err(JsonStreamParseError::InvalidNumber);
-                    } else {
-                        is_complete = true;
-                        break;
-                    }
+                    is_complete = true;
+                    break;
                 }
             } else {
                 is_complete = self.states.len() == 1; // is top level
@@ -369,7 +367,7 @@ where
                 }
 
                 if !expects_key {
-                    self.states.push(ParserState::ParsingObjectValue);
+                    self.states.push(ParserState::ObjectValue);
                 }
 
                 let complete = self.parse_element(expects_key)?; // Parse key or value
@@ -383,7 +381,7 @@ where
 
                     if !expects_key {
                         self.skip_whitespace();
-                        self.states.push(ParserState::ParsingObjectColon);
+                        self.states.push(ParserState::ObjectColon);
                         let complete = self.consume_char(':')?;
                         if complete {
                             self.states.pop();
@@ -422,7 +420,7 @@ where
                     return Err(JsonStreamParseError::InvalidLiteral(format!(
                         "Expected literal: {}",
                         literal
-                    )))
+                    )));
                 }
             } else {
                 return Ok(false);

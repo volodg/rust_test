@@ -1,3 +1,5 @@
+use crate::json_stream_parser::{JsonEvent, JsonStreamParser};
+
 mod json_stream_parser;
 
 // TODOs:
@@ -18,20 +20,34 @@ mod json_stream_parser;
 // 4. play with initial vector sizes "Vec::<u8>::with_capacity(1024); // 1k"
 
 fn main() {
-    // let json = r#"
-    //     {
-    //         "name": "Alice",
-    //         "age": 30,
-    //         "is_active": true,
-    //         "skills": ["Rust", "C++"]
-    //     }
-    // "#;
-    //
-    // let mut parser = JsonStreamParser::new(json, |event| {
-    //     println!("{:?}", event);
-    // });
-    //
-    // if let Err(err) = parser.parse() {
-    //     eprintln!("Error: {:?}", err);
-    // }
+    let json = r#"
+        {
+            "name": "Alice",
+            "age": 30,
+            "is_active": true,
+            "skills": ["Rust", "C++"]
+        }
+    "#;
+
+    let mut parser = JsonStreamParser::new(|event| {
+        match event {
+            JsonEvent::Bool(value) => {
+                println!("event with bool {:?}", value)
+            }
+            JsonEvent::Number(value) => {
+                println!("event with float {:?}", value)
+            }
+            JsonEvent::String(value) => {
+                println!("event with string {:?}", value)
+            }
+            JsonEvent::Key(value) => {
+                println!("event with string key {:?}", value)
+            }
+            _ => println!("event {:?}", event)
+        }
+    });
+
+    if let Err(err) = parser.parse(json.as_bytes()) {
+        eprintln!("Error: {:?}", err);
+    }
 }
