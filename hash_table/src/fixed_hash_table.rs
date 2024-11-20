@@ -11,9 +11,7 @@ use std::rc::Rc;
 
 // TODO:
 // 1. Cleanup Deleted
-// 2. Avoid Clone
-// 3. Move FixedHashTable to separate module
-// 4. add rehash
+// 2. add rehash
 
 enum Slot<K, V> {
     Empty,
