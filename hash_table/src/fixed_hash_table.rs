@@ -97,7 +97,7 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
 
         self.table[index] = Slot::Occupied(rc_key, value, node);
         self.count += 1;
-        return true;
+        true
     }
 
     // TODO try to return replaced value
@@ -194,8 +194,9 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
                     self.table[index] = Slot::Deleted;
                     self.deleted_count += 1;
                     self.count -= 1;
-                    if (self.count + self.deleted_count) as f64 >= self.size as f64 * 0.7 &&
-                        self.deleted_count as f64 > self.size as f64 / 3.0 {
+                    if (self.count + self.deleted_count) as f64 >= self.size as f64 * 0.7
+                        && self.deleted_count as f64 > self.size as f64 / 3.0
+                    {
                         self.rehash();
                     }
                     return true;
