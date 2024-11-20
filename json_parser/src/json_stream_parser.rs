@@ -50,7 +50,7 @@ pub enum JsonStreamParseError {
 enum ParserState {
     ParsingString,
     ParsingArray,
-    ParsingObject,
+    ParsingObject(bool), // true - expects key
     ParsingObjectKey,
     ParsingObjectColon,
     ParsingNum(bool), // true - is negative
@@ -97,54 +97,58 @@ where
         let mut complete = self.parse_value()?;
         while complete {
             if let Some(top) = self.states.last() {
-                if top == &ParserState::ParsingArray {
-                    self.skip_whitespace();
+                match top {
+                    ParserState::ParsingArray => {
+                        self.skip_whitespace();
 
-                    if let Some(last_char) = self.peek_char() {
-                        if last_char == ',' {
-                            self.unsafe_consume_one_char();
-                            self.start_pos = self.offset;
-                            self.skip_whitespace();
-                        } else if last_char == ']' {
-                            self.unsafe_consume_one_char();
-                            self.skip_whitespace();
-                            self.states.pop(); // pop ParsingArray
-                            (self.callback)(JsonEvent::EndArray);
-                            continue;
+                        if let Some(last_char) = self.peek_char() {
+                            if last_char == ',' {
+                                self.unsafe_consume_one_char();
+                                self.start_pos = self.offset;
+                                self.skip_whitespace();
+                            } else if last_char == ']' {
+                                self.unsafe_consume_one_char();
+                                self.skip_whitespace();
+                                self.states.pop(); // pop ParsingArray
+                                (self.callback)(JsonEvent::EndArray);
+                                continue;
+                            } else {
+                                return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                            }
+                            complete = self.parse_value()?;
                         } else {
-                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                            return Ok(false);
                         }
-                        complete = self.parse_value()?;
-                    } else {
-                        return Ok(false);
-                    }
-                } else if top == &ParserState::ParsingObject {
-                    self.skip_whitespace();
+                    },
+                    ParserState::ParsingObject(_) => {
+                        self.skip_whitespace();
 
-                    if let Some(last_char) = self.peek_char() {
-                        if last_char == ':' {
-                            self.unsafe_consume_one_char();
-                            self.start_pos = self.offset;
-                            self.skip_whitespace();
-                        } else if last_char == ',' {
-                            self.unsafe_consume_one_char();
-                            self.start_pos = self.offset;
-                            self.skip_whitespace();
-                        } else if last_char == '}' {
-                            self.unsafe_consume_one_char();
-                            self.skip_whitespace();
-                            self.states.pop(); // pop ParsingArray
-                            (self.callback)(JsonEvent::EndArray);
-                            continue;
+                        if let Some(last_char) = self.peek_char() {
+                            if last_char == ':' {
+                                self.unsafe_consume_one_char();
+                                self.start_pos = self.offset;
+                                self.skip_whitespace();
+                            } else if last_char == ',' {
+                                self.unsafe_consume_one_char();
+                                self.start_pos = self.offset;
+                                self.skip_whitespace();
+                            } else if last_char == '}' {
+                                self.unsafe_consume_one_char();
+                                self.skip_whitespace();
+                                self.states.pop(); // pop ParsingArray
+                                (self.callback)(JsonEvent::EndArray);
+                                continue;
+                            } else {
+                                return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
+                            }
+                            complete = self.parse_value()?;
                         } else {
-                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
+                            return Ok(false);
                         }
-                        complete = self.parse_value()?;
-                    } else {
-                        return Ok(false);
+                    },
+                    _ => {
+                        // TODO: error?
                     }
-                } else {
-                    // TODO: error?
                 }
             } else {
                 return Ok(true);
@@ -185,7 +189,7 @@ where
                 self.parse_array()
             }
             Some('{') => {
-                self.states.push(ParserState::ParsingObject);
+                self.states.push(ParserState::ParsingObject(true));
                 self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartObject);
                 self.parse_object()
@@ -236,7 +240,7 @@ where
                     Ok(false)
                 }
             }
-            Some(ParserState::ParsingObject) => {
+            Some(&ParserState::ParsingObject(expects_key)) => {
                 // TODO fix code duplications
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
@@ -256,7 +260,7 @@ where
                         (self.callback)(JsonEvent::EndArray);
                         Ok(true)
                     } else {
-                        self.parse_element(false)
+                        self.parse_element(expects_key)
                     }
                 } else {
                     Ok(false)
@@ -443,10 +447,14 @@ where
                 self.states.pop();
                 self.skip_whitespace();
 
+                self.states.pop();
+                self.states.push(ParserState::ParsingObject(false));
                 let complete = self.parse_element(false)?;
 
                 if complete {
                     self.states.pop();
+                    self.states.pop();
+                    self.states.push(ParserState::ParsingObject(true));
                     self.skip_whitespace();
 
                     if self.peek_char() == Some(',') {
