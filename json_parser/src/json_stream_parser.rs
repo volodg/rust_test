@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum JsonEvent<'a> {
     Null,
+    #[allow(dead_code)]
     Bool(bool),
     Number(f64),
     String(&'a str),
@@ -33,7 +34,6 @@ pub enum JsonStreamParseError {
     InvalidLiteral(String),
     InvalidBoolean,
     InvalidNumber,
-    InvalidString,
 }
 
 #[derive(Debug, PartialEq)]

@@ -75,6 +75,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         self.count
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
     // TODO, use random hasher to avoid hash attacks
     fn hash<Q: Hash + ?Sized>(&self, key: &Q) -> usize {
         let mut hasher = DefaultHasher::new();
@@ -114,10 +118,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         panic!("can not insert, invalid state")
     }
 
-    pub fn get_index<Q: ?Sized>(&self, key: &Q) -> Option<usize>
+    pub fn get_index<Q>(&self, key: &Q) -> Option<usize>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         let mut index = self.hash(key);
         for _ in 0..self.size {
@@ -133,10 +137,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         None
     }
 
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.get_index(key).map(|index| {
             if let Slot::Occupied(_, value, _) = &self.table[index] {
@@ -147,10 +151,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
         })
     }
 
-    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
     where
         K: BorrowMut<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         self.get_index(key).map(|index| {
             if let Slot::Occupied(_, value, _) = &mut self.table[index] {
@@ -162,10 +166,10 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     }
 
     // TODO: return deleted value
-    pub fn delete<Q: ?Sized>(&mut self, key: &Q) -> bool
+    pub fn delete<Q>(&mut self, key: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         let mut index = self.hash(key);
         for _ in 0..self.size {

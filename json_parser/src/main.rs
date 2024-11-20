@@ -78,12 +78,9 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
 
     let mut parser = JsonStreamParser::new(|event| match event {
         JsonEvent::Number(value) => {
-            match current_field {
-                CurrentField::TotalTradeCount => {
-                    statistic.total_trade_count += value as u64
-                },
-                _ => (),
-            };
+            if let CurrentField::TotalTradeCount = current_field {
+                statistic.total_trade_count += value as u64
+            }
         }
         JsonEvent::String(value) => {
             match current_field {
@@ -106,17 +103,17 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
                     statistic.total_amount += value
                         .parse::<f64>()
                         .unwrap_or_else(|_| panic!("valid num: {}", value))
-                },
+                }
                 CurrentField::MaxBidPrice => {
                     statistic.max_bid_price = statistic.max_bid_price.max(value
                         .parse::<f64>()
                         .unwrap_or_else(|_| panic!("valid num: {}", value)))
-                },
+                }
                 CurrentField::MinAskPrice => {
                     statistic.min_ask_price = statistic.min_ask_price.min(value
                         .parse::<f64>()
                         .unwrap_or_else(|_| panic!("valid num: {}", value)))
-                },
+                }
                 _ => (),
             };
         }
