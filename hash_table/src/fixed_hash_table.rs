@@ -1,7 +1,7 @@
-use std::borrow::{Borrow, BorrowMut};
 use crate::doubly_linked_list;
 use crate::doubly_linked_list::DoublyLinkedList;
 use proptest::proptest;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
@@ -117,7 +117,8 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn get_index<Q: ?Sized>(&self, key: &Q) -> Option<usize>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
@@ -135,10 +136,11 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.get_index(key).map(|index| {
             if let Slot::Occupied(_, value, _) = &self.table[index] {
-                return value
+                value
             } else {
                 panic!("invalid state")
             }
@@ -148,10 +150,11 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
     where
         K: BorrowMut<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         self.get_index(key).map(|index| {
             if let Slot::Occupied(_, value, _) = &mut self.table[index] {
-                return value
+                value
             } else {
                 panic!("invalid state")
             }
@@ -159,9 +162,11 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     }
 
     // TODO: return deleted value
-    pub fn delete<Q: ?Sized>(&mut self, key: &Q) -> bool where
+    pub fn delete<Q: ?Sized>(&mut self, key: &Q) -> bool
+    where
         K: Borrow<Q>,
-        Q: Hash + Eq {
+        Q: Hash + Eq,
+    {
         let mut index = self.hash(key);
         for _ in 0..self.size {
             match &self.table[index] {
@@ -183,7 +188,9 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn get_last(&self) -> Option<(Rc<K>, &V)> {
         match self.history.back() {
             Some(key) => {
-                let value = self.get(key.deref()).expect("Key should exist in the hash table");
+                let value = self
+                    .get(key.deref())
+                    .expect("Key should exist in the hash table");
                 Some((key.clone(), value))
             }
             None => None,
@@ -193,7 +200,9 @@ impl<K: Eq + Hash + Clone, V> FixedHashTable<K, V> {
     pub fn get_first(&self) -> Option<(Rc<K>, &V)> {
         match self.history.front() {
             Some(key) => {
-                let value = self.get(key.deref()).expect("Key should exist in the hash table");
+                let value = self
+                    .get(key.deref())
+                    .expect("Key should exist in the hash table");
                 Some((key.clone(), value))
             }
             None => None,
@@ -220,7 +229,6 @@ mod tests {
         assert!(hash_table.delete(&"banana"));
         assert_eq!(hash_table.get(&"banana"), None);
     }
-
 
     #[test]
     fn test_get_first_get_last() {

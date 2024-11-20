@@ -1,8 +1,8 @@
-use std::fs::File;
 use crate::json_stream_parser::{JsonEvent, JsonStreamParser};
 use crossbeam::channel::{bounded, Sender};
-use std::{io, thread};
+use std::fs::File;
 use std::io::Read;
+use std::{io, thread};
 
 mod json_stream_parser;
 // TODOs:
@@ -26,20 +26,11 @@ mod json_stream_parser;
 struct Statistic {
     last_price: f64,
     last_qty: f64,
-    total_volume: u64,
-    total_amount: u64,
+    total_volume: f64,
+    total_amount: f64,
     max_bid_price: f64,
     min_ask_price: f64,
     total_trade_count: u64,
-}
-
-fn read_bytes(buffer: &mut [u8]) -> usize {
-    // Заполняем буфер случайными байтами
-    let bytes_read = buffer.len().min(100); // Читаем до 100 байт
-    for i in 0..bytes_read {
-        buffer[i] = (i % 256) as u8;
-    }
-    bytes_read
 }
 
 fn producer(tx: Sender<Vec<u8>>, file_path: &str, buffer_size: usize) -> io::Result<()> {
@@ -74,45 +65,59 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
         TotalTradeCount,
     }
 
-
     let mut current_field = CurrentField::Unknown;
     let mut statistic = Statistic {
         last_price: 0.0,
         last_qty: 0.0,
-        total_volume: 0, // "volume": "5",
-        total_amount: 0, // "amount": "1",
+        total_volume: 0.0, // TODO use int
+        total_amount: 0.0, // TODO use int
         max_bid_price: f64::MIN, // "bidPrice":"999.34",
         min_ask_price: f64::MAX, // "askPrice":"1000.23",
-        total_trade_count: 0, //  "tradeCount": 5,
+        total_trade_count: 0,    //  "tradeCount": 5,
     };
 
     let mut parser = JsonStreamParser::new(|event| match event {
         JsonEvent::Number(value) => {
             match current_field {
-                CurrentField::LastPrice => (),
-                CurrentField::LastQty => (),
-                CurrentField::TotalVolume => (),
-                CurrentField::TotalAmount => (),
-                CurrentField::MaxBidPrice => (),
-                CurrentField::MinAskPrice => (),
-                CurrentField::TotalTradeCount => (),
-                CurrentField::Unknown => (),
+                CurrentField::TotalTradeCount => {
+                    statistic.total_trade_count += value as u64
+                },
+                _ => (),
             };
         }
         JsonEvent::String(value) => {
             match current_field {
                 CurrentField::LastPrice => {
-                    statistic.last_price = value.parse().expect(format!("valid num: {}", value).as_str())
-                },
+                    statistic.last_price = value
+                        .parse()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value))
+                }
                 CurrentField::LastQty => {
-                    statistic.last_qty = value.parse().expect(format!("valid num: {}", value).as_str())
+                    statistic.last_qty = value
+                        .parse()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value))
+                }
+                CurrentField::TotalVolume => {
+                    statistic.total_volume += value
+                        .parse::<f64>()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value))
+                }
+                CurrentField::TotalAmount => {
+                    statistic.total_amount += value
+                        .parse::<f64>()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value))
                 },
-                CurrentField::TotalVolume => (),
-                CurrentField::TotalAmount => (),
-                CurrentField::MaxBidPrice => (),
-                CurrentField::MinAskPrice => (),
-                CurrentField::TotalTradeCount => (),
-                CurrentField::Unknown => (),
+                CurrentField::MaxBidPrice => {
+                    statistic.max_bid_price = statistic.max_bid_price.max(value
+                        .parse::<f64>()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value)))
+                },
+                CurrentField::MinAskPrice => {
+                    statistic.min_ask_price = statistic.min_ask_price.min(value
+                        .parse::<f64>()
+                        .unwrap_or_else(|_| panic!("valid num: {}", value)))
+                },
+                _ => (),
             };
         }
         JsonEvent::Key(value) => {

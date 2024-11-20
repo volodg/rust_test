@@ -1,8 +1,8 @@
+use crate::fixed_hash_table::FixedHashTable;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader};
-use crate::fixed_hash_table::FixedHashTable;
 
 pub mod doubly_linked_list;
 pub mod fixed_hash_table;
@@ -23,7 +23,9 @@ fn main() -> io::Result<()> {
         let words: Vec<&str> = line.split_whitespace().collect();
 
         for word in words {
-            let word = word.trim_matches(|x: char| x.is_ascii_punctuation()).to_lowercase();
+            let word = word
+                .trim_matches(|x: char| x.is_ascii_punctuation())
+                .to_lowercase();
 
             if data_set.get(&word).is_none() && data_set.len() == max_size {
                 let key = data_set.get_first().expect("can not be empty").0;

@@ -1,7 +1,7 @@
+use criterion::{criterion_group, criterion_main, Criterion};
+use json_parser::json_stream_parser::{JsonEvent, JsonStreamParser};
 use std::cell::RefCell;
 use std::rc::Rc;
-use criterion::{Criterion, criterion_group, criterion_main};
-use json_parser::json_stream_parser::{JsonEvent, JsonStreamParser};
 
 const JSON: &[u8] = r#"
   {
@@ -24,7 +24,8 @@ const JSON: &[u8] = r#"
     "strikePrice": "9000",
     "exercisePrice": "3000.3356"
   },
-    "#.as_bytes();
+    "#
+.as_bytes();
 
 fn parse_json<F: for<'a> FnMut(JsonEvent<'a>)>(parser: Rc<RefCell<JsonStreamParser<F>>>) {
     if let Err(err) = parser.borrow_mut().parse(JSON) {
@@ -49,9 +50,7 @@ fn benchmark_parse_json(c: &mut Criterion) {
         eprintln!("Error: {:?}", err);
     }
 
-    c.bench_function("parse_json", |b| {
-        b.iter(|| parse_json(parser.clone()))
-    });
+    c.bench_function("parse_json", |b| b.iter(|| parse_json(parser.clone())));
 }
 
 criterion_group!(benches, benchmark_parse_json);

@@ -1,6 +1,6 @@
+use rand::Rng;
 use std::fs::File;
 use std::io::{BufWriter, Seek, Write};
-use rand::Rng;
 
 const FILE_NAME: &str = "ticks.json";
 const SYMBOL: &str = "BTC-200730-9000-C";

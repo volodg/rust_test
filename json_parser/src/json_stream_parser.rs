@@ -209,7 +209,11 @@ where
     #[inline(always)]
     fn set_parsing_object_expects_key(&mut self, value: bool) {
         let index = self.states.len() - 1;
-        let ParserState::Object(expects_key) = (unsafe { &mut self.states.get_unchecked_mut(index) }) else { unreachable!() };
+        let ParserState::Object(expects_key) =
+            (unsafe { &mut self.states.get_unchecked_mut(index) })
+        else {
+            unreachable!()
+        };
         *expects_key = value;
     }
 
