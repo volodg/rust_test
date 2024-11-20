@@ -30,11 +30,10 @@ pub enum JsonStreamParseError {
     #[allow(dead_code)]
     InvalidArray(String),
     #[allow(dead_code)]
-    InvalidObject(String),
-    #[allow(dead_code)]
     InvalidLiteral(String),
     InvalidBoolean,
     InvalidNumber,
+    InvalidString,
 }
 
 #[derive(Debug, PartialEq)]
@@ -154,15 +153,9 @@ where
 
     fn parse_value(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = match self.states.last() {
-            None => {
-                self.parse_element(false)
-            }
-            Some(ParserState::ParsingArray) => {
-                self.parse_array()
-            }
-            Some(&ParserState::ParsingObject(expects_key)) => {
-                self.parse_object(expects_key)
-            }
+            None => self.parse_element(false),
+            Some(ParserState::ParsingArray) => self.parse_array(),
+            Some(&ParserState::ParsingObject(expects_key)) => self.parse_object(expects_key),
             Some(ParserState::ParsingObjectKey) => {
                 let complete = self.parse_string(true)?;
 
@@ -183,21 +176,11 @@ where
                 self.skip_whitespace();
                 Ok(result)
             }
-            Some(ParserState::ParsingString) => {
-                self.parse_string(false)
-            }
-            Some(ParserState::ParsingNum(negative)) => {
-                self.parse_number(*negative)
-            }
-            Some(ParserState::ParsingTrue) => {
-                self.parse_true()
-            }
-            Some(ParserState::ParsingFalse) => {
-                self.parse_false()
-            }
-            Some(ParserState::ParsingNull) => {
-                self.parse_null()
-            }
+            Some(ParserState::ParsingString) => self.parse_string(false),
+            Some(ParserState::ParsingNum(negative)) => self.parse_number(*negative),
+            Some(ParserState::ParsingTrue) => self.parse_true(),
+            Some(ParserState::ParsingFalse) => self.parse_false(),
+            Some(ParserState::ParsingNull) => self.parse_null(),
         }?;
         if complete {
             self.states.pop();
@@ -227,7 +210,9 @@ where
     }
 
     fn parse_true(&mut self) -> Result<bool, JsonStreamParseError> {
-        let complete = self.expect_literal("true").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
+        let complete = self
+            .expect_literal("true")
+            .map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(true));
             self.start_pos = self.offset;
@@ -236,7 +221,9 @@ where
     }
 
     fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
-        let complete = self.expect_literal("false").map_err(|_| JsonStreamParseError::InvalidBoolean)?;
+        let complete = self
+            .expect_literal("false")
+            .map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(false));
             self.start_pos = self.offset;
@@ -252,7 +239,8 @@ where
                 if chr.is_digit(10) || chr == '.' || chr == '-' || chr == 'e' || chr == 'E' {
                     self.next_char();
                 } else {
-                    if self.states.len() == 1 { // num is a top level element
+                    if self.states.len() == 1 {
+                        // num is a top level element
                         return Err(JsonStreamParseError::InvalidNumber);
                     } else {
                         is_complete = true;
@@ -267,7 +255,8 @@ where
 
         if is_complete {
             let bytes = &self.buffer[self.start_pos..self.offset];
-            let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
+            let slice =
+                std::str::from_utf8(bytes).map_err(|_| JsonStreamParseError::InvalidString)?;
 
             return match slice.parse::<f64>() {
                 Ok(n) => {
@@ -291,7 +280,8 @@ where
         while let Some(c) = self.next_char() {
             if c == '"' {
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
-                let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
+                let slice =
+                    std::str::from_utf8(bytes).map_err(|_| JsonStreamParseError::InvalidString)?;
                 if is_key {
                     (self.callback)(JsonEvent::Key(slice));
                 } else {
@@ -329,7 +319,9 @@ where
 
                     if let Some(last_char) = self.peek_char() {
                         if last_char != ']' && last_char != ',' {
-                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
+                            return Err(JsonStreamParseError::InvalidArray(
+                                "Expected ',' or ']'".into(),
+                            ));
                         }
                     } else {
                         break;
@@ -348,7 +340,7 @@ where
     #[allow(dead_code)]
     fn print_rem(&self) {
         let bytes = &self.buffer[self.start_pos..];
-        let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
+        let slice = std::str::from_utf8(bytes).expect("unsafe debug method");
         println!("rem: {}, pos: {}", slice, self.start_pos);
     }
 
@@ -392,14 +384,14 @@ where
                             self.states.pop();
                             self.skip_whitespace();
                         } else {
-                            break
+                            break;
                         }
                     }
                 } else {
-                    break
+                    break;
                 }
             } else {
-                break
+                break;
             }
         }
 
@@ -424,7 +416,10 @@ where
         for expected in literal[start_pos..].chars() {
             if let Some(next_char) = self.next_char() {
                 if next_char != expected {
-                    return Err(JsonStreamParseError::InvalidLiteral(format!("Expected literal: {}", literal)));
+                    return Err(JsonStreamParseError::InvalidLiteral(format!(
+                        "Expected literal: {}",
+                        literal
+                    )));
                 }
             } else {
                 return Ok(false);
@@ -439,7 +434,10 @@ where
                 self.start_pos += 1;
                 Ok(true)
             } else {
-                return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
+                return Err(JsonStreamParseError::InvalidLiteral(format!(
+                    "Expected '{}'",
+                    expected
+                )));
             }
         } else {
             Ok(false)
@@ -472,8 +470,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
     use super::*;
+    use std::cell::RefCell;
 
     #[derive(Debug, PartialEq, Clone)]
     pub enum OwningJsonEvent {
@@ -518,7 +516,11 @@ mod tests {
             prev_index
         };
 
-        fn test(events: &[OwningJsonEvent], expected: OwningJsonEvent, mut inc: impl FnMut() -> usize) {
+        fn test(
+            events: &[OwningJsonEvent],
+            expected: OwningJsonEvent,
+            mut inc: impl FnMut() -> usize,
+        ) {
             assert_eq!(&events[inc()], &expected);
         }
 
@@ -526,9 +528,8 @@ mod tests {
             for split_at in 1..json.len() {
                 events.borrow_mut().clear();
                 // Debug: println!("testing split at: {split_at}, [{}][{}]", &json[0..split_at], &json[split_at..]);
-                let mut parser = JsonStreamParser::new(|event| {
-                    events.borrow_mut().push(event.into())
-                });
+                let mut parser =
+                    JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
 
                 assert!(parser.parse(&bytes[0..split_at]).is_ok());
                 assert!(parser.parse(&bytes[split_at..]).is_ok());
@@ -539,10 +540,8 @@ mod tests {
 
         events.borrow_mut().clear();
 
-        let mut parser = JsonStreamParser::new(|event| {
-            events.borrow_mut().push(event.into())
-        });
-        assert!(parser.parse(&bytes).is_ok());
+        let mut parser = JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
+        assert!(parser.parse(bytes).is_ok());
 
         *index.borrow_mut() = 0;
         test(&events.borrow(), expected.clone(), get_next_idx);
@@ -613,9 +612,7 @@ mod tests {
         for split_at in 1..json.len() {
             events.borrow_mut().clear();
             // Debug: println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-            let mut parser = JsonStreamParser::new(|event| {
-                events.borrow_mut().push(event.into())
-            });
+            let mut parser = JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
 
             assert!(parser.parse(&bytes[0..split_at]).is_ok());
             assert!(parser.parse(&bytes[split_at..]).is_ok());
@@ -625,10 +622,8 @@ mod tests {
 
         events.borrow_mut().clear();
 
-        let mut parser = JsonStreamParser::new(|event| {
-            events.borrow_mut().push(event.into())
-        });
-        assert!(parser.parse(&bytes).is_ok());
+        let mut parser = JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
+        assert!(parser.parse(bytes).is_ok());
 
         *index.borrow_mut() = 0;
         test(&events.borrow(), get_next_idx);
@@ -663,12 +658,18 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::StartObject);
 
             assert_eq!(&events[inc()], &OwningJsonEvent::Key("name".to_string()));
-            assert_eq!(&events[inc()], &OwningJsonEvent::String("Alice".to_string()));
+            assert_eq!(
+                &events[inc()],
+                &OwningJsonEvent::String("Alice".to_string())
+            );
 
             assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
             assert_eq!(&events[inc()], &OwningJsonEvent::Number(30.0));
 
-            assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+            assert_eq!(
+                &events[inc()],
+                &OwningJsonEvent::Key("is_active".to_string())
+            );
             assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
 
             assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
@@ -701,10 +702,8 @@ mod tests {
 
         events.borrow_mut().clear();
 
-        let mut parser = JsonStreamParser::new(|event| {
-            events.borrow_mut().push(event.into())
-        });
-        assert!(parser.parse(&bytes).is_ok());
+        let mut parser = JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
+        assert!(parser.parse(bytes).is_ok());
 
         *index.borrow_mut() = 0;
         test(&events.borrow(), get_next_idx);
@@ -750,12 +749,18 @@ mod tests {
                 assert_eq!(&events[inc()], &OwningJsonEvent::StartObject);
 
                 assert_eq!(&events[inc()], &OwningJsonEvent::Key("name".to_string()));
-                assert_eq!(&events[inc()], &OwningJsonEvent::String("Alice".to_string()));
+                assert_eq!(
+                    &events[inc()],
+                    &OwningJsonEvent::String("Alice".to_string())
+                );
 
                 assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
                 assert_eq!(&events[inc()], &OwningJsonEvent::Number(30.0));
 
-                assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+                assert_eq!(
+                    &events[inc()],
+                    &OwningJsonEvent::Key("is_active".to_string())
+                );
                 assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
 
                 assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
@@ -783,7 +788,10 @@ mod tests {
                 assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
                 assert_eq!(&events[inc()], &OwningJsonEvent::Number(40.0));
 
-                assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+                assert_eq!(
+                    &events[inc()],
+                    &OwningJsonEvent::Key("is_active".to_string())
+                );
                 assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
 
                 assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
@@ -795,8 +803,10 @@ mod tests {
                 {
                     assert_eq!(&events[inc()], &OwningJsonEvent::String("Rust".to_string()));
                     assert_eq!(&events[inc()], &OwningJsonEvent::String("C++".to_string()));
-                    assert_eq!(&events[inc()], &OwningJsonEvent::String("Scala".to_string()));
-
+                    assert_eq!(
+                        &events[inc()],
+                        &OwningJsonEvent::String("Scala".to_string())
+                    );
                 }
                 assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
 
@@ -821,10 +831,8 @@ mod tests {
 
         events.borrow_mut().clear();
 
-        let mut parser = JsonStreamParser::new(|event| {
-            events.borrow_mut().push(event.into())
-        });
-        assert!(parser.parse(&bytes).is_ok());
+        let mut parser = JsonStreamParser::new(|event| events.borrow_mut().push(event.into()));
+        assert!(parser.parse(bytes).is_ok());
 
         *index.borrow_mut() = 0;
         test(&events.borrow(), get_next_idx);
