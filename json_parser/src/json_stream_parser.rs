@@ -56,6 +56,7 @@ enum ParserState {
     ParsingTrue,
     ParsingFalse,
     ParsingNull,
+    ParsingObjColon,
 }
 
 impl<'a, F> JsonStreamParser<F>
@@ -140,7 +141,12 @@ where
                 self.parse_false()
             }
             Some('"') => {
-                self.states.push(ParserState::ParsingString);
+                let new_state = if is_key {
+                    ParserState::ParsingKey
+                } else {
+                    ParserState::ParsingString
+                };
+                self.states.push(new_state);
                 self.unsafe_consume_one_char();
                 self.parse_string(is_key)
             }
@@ -207,6 +213,11 @@ where
             }
             Some(ParserState::ParsingKey) => {
                 self.parse_string(true)
+            }
+            Some(ParserState::ParsingObjColon) => {
+                let result = self.consume_char(':')?;
+                self.skip_whitespace();
+                Ok(result)
             }
             Some(ParserState::ParsingString) => {
                 self.parse_string(false)
@@ -354,6 +365,7 @@ where
         Ok(false)
     }
 
+    #[allow(dead_code)]
     fn print_rem(&self) {
         let bytes = &self.buffer[self.start_pos..];
         let slice = std::str::from_utf8(bytes).expect(""); // TODO avoid expects
@@ -375,8 +387,9 @@ where
                 self.states.pop();
 
                 self.skip_whitespace();
-                // TODO add state - ParsingObjColon
+                self.states.push(ParserState::ParsingObjColon);
                 self.consume_char(':')?;
+                self.states.pop();
                 self.skip_whitespace();
 
                 let complete = self.parse_element(false)?;
@@ -428,14 +441,10 @@ where
         Ok(true)
     }
 
-    fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
-        if let Some(next_char) = self.next_char() {
-            if next_char == expected {
-                self.start_pos += 1;
-                Ok(())
-            } else {
-                return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
-            }
+    fn consume_char(&mut self, expected: char) -> Result<bool, JsonStreamParseError> {
+        if self.next_char() == Some(expected) {
+            self.start_pos += 1;
+            Ok(true)
         } else {
             return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
         }
@@ -706,56 +715,5 @@ mod tests {
         test(&events.borrow(), get_next_idx);
     }
 
-    // TODO add test for null
-    #[test]
-    fn test_json_parser_callbacks() {
-        //     let json = r#"
-        //     {
-        //         "name": "Alice",
-        //         "age": 30,
-        //         "is_active": true,
-        //         "married": false,
-        //         "skills": ["Rust", "C++"]
-        //     }
-        // "#;
-        //
-        //     let mut events: Vec<OwningJsonEvent> = vec![];
-        //
-        //     let mut parser = JsonStreamParser::new(json, |event| {
-        //         events.push(event.into())
-        //     });
-        //     assert!(parser.parse().is_ok());
-        //
-        //     let mut index = 0;
-        //     let mut get_next_idx = || {
-        //         let result = index;
-        //         index += 1;
-        //         result
-        //     };
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartObject);
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("name".to_string()));
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Alice".to_string()));
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("age".to_string()));
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Number(30.0));
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("is_active".to_string()));
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(true));
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("married".to_string()));
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Bool(false));
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::Key("skills".to_string()));
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::StartArray);
-        //     {
-        //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("Rust".to_string()));
-        //         assert_eq!(&events[get_next_idx()], &OwningJsonEvent::String("C++".to_string()));
-        //     }
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndArray);
-        //
-        //     assert_eq!(&events[get_next_idx()], &OwningJsonEvent::EndObject);
-    }
+    // TODO add test for array of objects
 }
