@@ -371,17 +371,24 @@ where
                 self.states.pop();
 
                 self.skip_whitespace();
+                // TODO add state - ParsingObjColon
                 self.consume_char(':')?;
                 self.skip_whitespace();
 
-                self.parse_value()?;
-                //         self.skip_whitespace();
-                //
-                //         if self.peek_char() == Some(',') {
-                //             self.consume_char(',')?;
-                //         } else if self.peek_char() != Some('}') {
-                //             return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
-                //         }
+                let complete = self.parse_element()?;
+
+                if complete {
+                    self.states.pop();
+                    self.skip_whitespace();
+
+                    if self.peek_char() == Some(',') {
+                        self.unsafe_consume_one_char();
+                    } else if self.peek_char() != Some('}') {
+                        return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
+                    }
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
