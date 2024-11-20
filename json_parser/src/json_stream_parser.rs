@@ -79,6 +79,7 @@ where
     fn append_buffer(&mut self, chunk: &[u8]) {
         let start_pos = self.start_pos;
         self.offset = self.buffer.len() - start_pos;
+        // TODO don't drain, just append if buffer is big enough
         self.buffer.drain(..start_pos);
 
         // TODO: use custom cache friendly reallocation algorithm?
@@ -117,6 +118,29 @@ where
                     } else {
                         return Ok(false);
                     }
+                } else if top == &ParserState::ParsingObject {
+                    self.skip_whitespace();
+
+                    if let Some(last_char) = self.peek_char() {
+                        if last_char == ',' {
+                            self.unsafe_consume_one_char();
+                            self.start_pos = self.offset;
+                            self.skip_whitespace();
+                        } else if last_char == '}' {
+                            self.unsafe_consume_one_char();
+                            self.skip_whitespace();
+                            self.states.pop(); // pop ParsingArray
+                            (self.callback)(JsonEvent::EndArray);
+                            continue;
+                        } else {
+                            return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
+                        }
+                        complete = self.parse_value()?;
+                    } else {
+                        return Ok(false);
+                    }
+                } else {
+                    // TODO: error?
                 }
             } else {
                 return Ok(true);
@@ -209,7 +233,25 @@ where
                 }
             }
             Some(ParserState::ParsingObject) => {
-                todo!()
+                // TODO fix code duplications
+                self.skip_whitespace();
+                if let Some(last_char) = self.peek_char() {
+                    if last_char == ',' {
+                        self.unsafe_consume_one_char();
+                        self.start_pos = self.offset;
+                        self.skip_whitespace();
+                        self.parse_element(false)
+                    } else if last_char == '}' {
+                        self.unsafe_consume_one_char();
+                        self.skip_whitespace();
+                        (self.callback)(JsonEvent::EndArray);
+                        Ok(true)
+                    } else {
+                        self.parse_element(false)
+                    }
+                } else {
+                    Ok(false)
+                }
             }
             Some(ParserState::ParsingKey) => {
                 self.parse_string(true)
