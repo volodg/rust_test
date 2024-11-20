@@ -23,3 +23,5 @@ Cargo.lock
 **/.DS_Store
 /hash_table/.idea/
 /json_parser/.idea/
+/data_generator/.idea/
+/ticks.json
