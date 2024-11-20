@@ -85,3 +85,55 @@ Review the Binance European Options API documentation at https://binance-docs.gi
 > The solutions must be provided in Rust. Please mention all your steps and explain what led you
 to choose your solution. You can briefly comment on other solutions and ideas which you had while solving this task.
 
+Seeing the need to measure performance and gather statistics,
+I realized that a zero-allocation, scanning-only, streaming JSON parser would be the right fit for the task.
+
+Initial Considerations:
+1. Use an existing library:
+While this seemed like the quickest option, it felt contrary to the spirit of a coding assignment. 
+Additionally, a brief search didn’t yield libraries with the exact interfaces I envisioned.
+
+2. Use a parsing library:
+I considered using a library like "nom". If I had more time, I would have explored building a solution with nom or a similar library. 
+However, I anticipated potential limitations or issues, which could lead to wasted time and the need to start over.
+
+3. Write everything from scratch:
+This option offered the most flexibility for optimizations and seemed the most meaningful for the task. 
+It also appeared to be relatively straightforward, so I chose this route.
+
+Implementation Steps:
+I began by creating a simple, non-streaming parser and writing unit tests for it, providing a foundation for further work.
+
+Next, I refactored the prototype into streaming parser logic, updated interfaces, 
+and ensured that the tests passed for basic scenarios. 
+Then, I added tests to simulate stream packet splitting by breaking JSON messages at arbitrary points.
+
+After debugging and adding numerous TODOs with ideas for improvement, I focused on making the parser handle more test cases.
+
+Once all tests were passing, I cleaned up the roughest parts of the code.
+
+I moved on to the primary task: generating a 1GB JSON input file 
+(since I couldn't access the Binance API due to location restrictions, and VPN didn’t help). 
+I successfully parsed it in around 2+ seconds, collecting the required statistics.
+
+After, I added benchmark tests, used flamegraph to identify bottlenecks, 
+and improved performance by nearly 50%, primarily by optimizing UTF-8 conversions and addressing other minor inefficiencies.
+
+Finalizing:
+With the task completed, tests in place, and the code optimized, 
+I returned to the remaining TODOs and cleaned the code further, leveraging tools like cargo fmt, clippy, test, and check.
+
+What I would like to improve:
+1. Experiment with buffer sizes to find the most efficient configuration.
+2. Test custom memory-aligned structures for improved performance.
+3. Use thread affinity for producer and consumer threads.
+4. Replace the dual-thread/queue approach with fully asynchronous producer/consumer methods.
+5. Explore or implement a more efficient bounded queue with zero allocations.
+6. Optimize symbol searching within buffers using SIMD instructions.
+7. Use tools like perf or cachegrind to identify further bottlenecks.
+8. Aim for performance parity with C++’s simdjson library, which currently outperforms my implementation by about 2x.
+9. Revisit the idea of building the parser using nom or a similar library.
+10. Address parser limitations:
+Handle escaped characters correctly.
+Fix comma parsing to comply with JSON standards.
+Enhance the parser for better feature completeness.
