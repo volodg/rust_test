@@ -120,7 +120,10 @@ where
                             return Ok(false);
                         }
                     },
-                    ParserState::ParsingObject(_) => {
+                    &ParserState::ParsingObject(expect_key) => {
+                        self.states.pop(); // TODO modify top
+                        self.states.push(ParserState::ParsingObject(!expect_key));
+
                         self.skip_whitespace();
 
                         if let Some(last_char) = self.peek_char() {
@@ -136,7 +139,7 @@ where
                                 self.unsafe_consume_one_char();
                                 self.skip_whitespace();
                                 self.states.pop(); // pop ParsingArray
-                                (self.callback)(JsonEvent::EndArray);
+                                (self.callback)(JsonEvent::EndObject);
                                 continue;
                             } else {
                                 return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
@@ -257,7 +260,7 @@ where
                     } else if last_char == '}' {
                         self.unsafe_consume_one_char();
                         self.skip_whitespace();
-                        (self.callback)(JsonEvent::EndArray);
+                        (self.callback)(JsonEvent::EndObject);
                         Ok(true)
                     } else {
                         self.parse_element(expects_key)
@@ -447,13 +450,13 @@ where
                 self.states.pop();
                 self.skip_whitespace();
 
-                self.states.pop();
+                self.states.pop(); // TODO modify top
                 self.states.push(ParserState::ParsingObject(false));
                 let complete = self.parse_element(false)?;
 
                 if complete {
                     self.states.pop();
-                    self.states.pop();
+                    self.states.pop();  // TODO modify top
                     self.states.push(ParserState::ParsingObject(true));
                     self.skip_whitespace();
 
@@ -750,20 +753,20 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        // for split_at in 1..json.len() {
-        //     events.borrow_mut().clear();
-        //     let split_at = 14;
-        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-        //     let mut parser = JsonStreamParser::new(|event| {
-        //         events.borrow_mut().push(event.into())
-        //     });
-        //
-        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        //     parser.print_rem();
-        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
-        //     *index.borrow_mut() = 0;
-        //     test(&events.borrow(), get_next_idx);
-        // }
+        for split_at in 1..json.len() {
+            events.borrow_mut().clear();
+            let split_at = 14;
+            println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+            let mut parser = JsonStreamParser::new(|event| {
+                events.borrow_mut().push(event.into())
+            });
+
+            assert!(parser.parse(&bytes[0..split_at]).is_ok());
+            parser.print_rem();
+            assert!(parser.parse(&bytes[split_at..]).is_ok());
+            *index.borrow_mut() = 0;
+            test(&events.borrow(), get_next_idx);
+        }
 
         events.borrow_mut().clear();
 
