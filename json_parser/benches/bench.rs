@@ -33,7 +33,7 @@ fn parse_json<F: for<'a> FnMut(JsonEvent<'a>)>(parser: Rc<RefCell<JsonStreamPars
 }
 
 // Bench result
-// parse_json              time:   [700.66 ns 704.18 ns 709.47 ns]
+// parse_json              time:   [704.66 ns 707.68 ns 710.72 ns]
 fn benchmark_parse_json(c: &mut Criterion) {
     let parser = Rc::new(RefCell::new(JsonStreamParser::new(|_| {})));
 

@@ -205,9 +205,10 @@ where
         Ok(complete)
     }
 
-    fn set_parsing_object_expects_key(&mut self, expects_key: bool) {
-        self.states.pop();
-        self.states.push(ParserState::Object(expects_key)); // expects value
+    fn set_parsing_object_expects_key(&mut self, value: bool) {
+        let index = self.states.len() - 1;
+        let ParserState::Object(expects_key) = &mut self.states[index] else { unreachable!() };
+        *expects_key =  value;
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
