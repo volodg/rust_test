@@ -112,6 +112,16 @@ where
                                 self.unsafe_consume_one_char();
                                 self.skip_whitespace();
                                 self.states.pop(); // pop ParsingArray
+
+                                // TODO cleanup duplication
+                                if let Some(top) = self.states.last() {
+                                    if top == &ParserState::ParsingObjectValue {
+                                        self.states.pop(); // remove ParsingObjectValue
+                                        self.states.pop(); // TODO replace
+                                        self.states.push(ParserState::ParsingObject(true)); // expects key
+                                    }
+                                }
+
                                 (self.callback)(JsonEvent::EndArray);
                                 continue;
                             } else {
@@ -803,21 +813,22 @@ mod tests {
             assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
         }
 
-        // for split_at in 1..json.len() {
-        // events.borrow_mut().clear();
-        // let split_at = 46;
-        // println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
-        // let mut parser = JsonStreamParser::new(|event| {
-        //     println!("event: {:?}", &event);
-        //     events.borrow_mut().push(event.into());
-        // });
+        // println!("json.len(): {}", json.len()); // 208
+        // for split_at in 1..172 {
+        //     events.borrow_mut().clear();
+        //     // let split_at = 172;
+        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+        //     let mut parser = JsonStreamParser::new(|event| {
+        //         println!("event: {:?}", &event);
+        //         events.borrow_mut().push(event.into());
+        //     });
         //
-        // assert!(parser.parse(&bytes[0..split_at]).is_ok());
-        // parser.print_rem();
-        // assert!(parser.parse(&bytes[split_at..]).is_ok());
-        // *index.borrow_mut() = 0;
-        // test(&events.borrow(), get_next_idx);
-        // }
+        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //     parser.print_rem();
+        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
+        //     *index.borrow_mut() = 0;
+        //     test(&events.borrow(), get_next_idx);
+        //}
 
         events.borrow_mut().clear();
 
