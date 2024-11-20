@@ -27,8 +27,6 @@ However, I don't have much practical experience working with Rust in a team sett
 Despite these limitations, I love Rust because it aligns perfectly with my vision of the ideal programming language. 
 It provides expressive, functional, and safe code with excellent compile-time checks, making it a joy to use.
 
-TODO: -----------------------------
-
 Part 2: Data Structures and Algorithms
 Create a data-set of words from the book https://www.gutenberg.org/files/98/98-0.txt. 
 Implement a fixed sized open addressing hash table by using linear probing to resolve collisions. 
