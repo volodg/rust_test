@@ -118,8 +118,8 @@ fn consumer(rx: crossbeam::channel::Receiver<Vec<u8>>) {
 }
 
 fn main() {
-    const QUEUE_SIZE: usize = 1024;
-    const BUFFER_SIZE: usize = 4096;
+    const QUEUE_SIZE: usize = 1024 * 32;
+    const BUFFER_SIZE: usize = 1024 * 32;
     const FILE_PATH: &str = "./ticks.json";
 
     let (tx, rx) = bounded::<Vec<u8>>(QUEUE_SIZE);

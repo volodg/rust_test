@@ -66,7 +66,7 @@ where
     F: FnMut(JsonEvent),
 {
     pub fn new(callback: F) -> Self {
-        let buffer = Vec::<u8>::with_capacity(1024); // 1k
+        let buffer = Vec::<u8>::with_capacity(1024 * 32); // 32kB
         let states = Vec::<ParserState>::with_capacity(16);
         Self {
             callback,
