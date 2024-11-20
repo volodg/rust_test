@@ -296,7 +296,8 @@ where
                 Ok(complete)
             }
             Some(ParserState::ParsingObjectValue) => {
-                todo!()
+                self.skip_whitespace();
+                self.parse_element(false)
             }
             Some(ParserState::ParsingObjectColon) => {
                 let result = self.consume_char(':')?;
@@ -808,7 +809,7 @@ mod tests {
 
         // for split_at in 1..json.len() {
         //     events.borrow_mut().clear();
-        //     let split_at = 40;
+        //     // let split_at = 46;
         //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
         //     let mut parser = JsonStreamParser::new(|event| {
         //         println!("event: {:?}", &event);
