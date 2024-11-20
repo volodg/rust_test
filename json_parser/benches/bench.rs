@@ -39,6 +39,9 @@ fn parse_json<F: for<'a> FnMut(JsonEvent<'a>)>(parser: Rc<RefCell<JsonStreamPars
 
 // sudo cargo flamegraph -- --call-graph dwarf
 // shows that now most expensive are parse_str and parse::<f64>
+
+// sota scanner simdjson can parse 2.5GB/s or having 180ns latency
+// this app parses 0.5GB/s
 fn benchmark_parse_json(c: &mut Criterion) {
     let parser = Rc::new(RefCell::new(JsonStreamParser::new(|_| {})));
 

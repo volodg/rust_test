@@ -272,6 +272,7 @@ where
             let slice = bytes.parse_str();
 
             // TODO maybe will be efficient to parse into int if no dots in string
+            // here used: https://github.com/rust-lang/rust/blob/master/library/core/src/num/dec2flt/mod.rs
             return match slice.parse::<f64>() {
                 Ok(n) => {
                     let num = if is_negative { -n } else { n };
