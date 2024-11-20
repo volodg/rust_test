@@ -68,7 +68,7 @@ where
     }
 
     fn append_buffer(&mut self, chunk: &[u8]) {
-        if self.offset + chunk.len() < self.buffer.capacity() {
+        if self.buffer.len() + chunk.len() < self.buffer.capacity() {
             self.buffer.extend_from_slice(chunk);
         } else {
             let start_pos = self.start_pos;
