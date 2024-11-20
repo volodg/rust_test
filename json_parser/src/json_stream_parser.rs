@@ -60,7 +60,7 @@ impl ParseStrSlice for &[u8] {
     }
 }
 
-impl<'a, F> JsonStreamParser<F>
+impl<F> JsonStreamParser<F>
 where
     F: FnMut(JsonEvent),
 {
@@ -141,7 +141,7 @@ where
                 (self.callback)(JsonEvent::StartObject);
                 self.parse_object(true)
             }
-            Some(c) if c.is_digit(10) || c == '-' => {
+            Some(c) if c.is_ascii_digit() || c == '-' => {
                 let is_negative = c == '-';
                 if is_negative {
                     self.unsafe_consume_one_char();
@@ -246,7 +246,7 @@ where
 
         loop {
             if let Some(chr) = self.peek_char() {
-                if chr.is_digit(10) || chr == '.' || chr == '-' || chr == 'e' || chr == 'E' {
+                if chr.is_ascii_digit() || chr == '.' || chr == '-' || chr == 'e' || chr == 'E' {
                     self.next_char();
                 } else {
                     if self.states.len() == 1 {
