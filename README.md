@@ -125,13 +125,14 @@ What I would like to improve:
 1. Experiment with buffer sizes to find the most efficient configuration.
 2. Test custom memory-aligned structures for improved performance.
 3. Use thread affinity for producer and consumer threads.
-4. Replace the dual-thread/queue approach with fully asynchronous producer/consumer methods.
-5. Explore or implement a more efficient bounded queue with zero allocations.
-6. Optimize symbol searching within buffers using SIMD instructions.
-7. Use tools like perf or cachegrind to identify further bottlenecks.
-8. Aim for performance parity with C++’s simdjson library, which currently outperforms my implementation by about 2x.
-9. Revisit the idea of building the parser using nom or a similar library.
-10. Address parser limitations:
+4. Explore or implement a more efficient bounded queue with zero allocations.
+5. Optimize symbol searching within buffers using SIMD instructions.
+6. Use tools like perf or cachegrind to identify further bottlenecks.
+7. Aim for performance parity with C++’s simdjson library, which currently outperforms my implementation by about 2x.
+8. Revisit the idea of building the parser using nom or a similar library.
+9. Address parser limitations:
 Handle escaped characters correctly.
 Fix comma parsing to comply with JSON standards.
 Enhance the parser for better feature completeness.
+Optionally try:
+10. To replace the dual-thread/queue approach with fully asynchronous producer/consumer methods.
