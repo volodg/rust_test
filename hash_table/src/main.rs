@@ -14,7 +14,7 @@ fn main() -> io::Result<()> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
-    let max_size = 50;
+    let max_size = 100;
     let mut data_set = FixedHashTable::<String, usize>::new(max_size);
 
     for line in reader.lines() {
