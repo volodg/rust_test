@@ -48,15 +48,15 @@ pub enum JsonStreamParseError {
 
 #[derive(Debug, PartialEq)]
 enum ParserState {
-    ParsingKey,
     ParsingString,
     ParsingArray,
     ParsingObject,
+    ParsingObjectKey,
+    ParsingObjectColon,
     ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
     ParsingNull,
-    ParsingObjColon,
 }
 
 impl<'a, F> JsonStreamParser<F>
@@ -170,7 +170,7 @@ where
             }
             Some('"') => {
                 let new_state = if is_key {
-                    ParserState::ParsingKey
+                    ParserState::ParsingObjectKey
                 } else {
                     ParserState::ParsingString
                 };
@@ -262,10 +262,10 @@ where
                     Ok(false)
                 }
             }
-            Some(ParserState::ParsingKey) => {
+            Some(ParserState::ParsingObjectKey) => {
                 self.parse_string(true)
             }
-            Some(ParserState::ParsingObjColon) => {
+            Some(ParserState::ParsingObjectColon) => {
                 let result = self.consume_char(':')?;
                 self.skip_whitespace();
                 Ok(result)
@@ -438,7 +438,7 @@ where
                 self.states.pop();
 
                 self.skip_whitespace();
-                self.states.push(ParserState::ParsingObjColon);
+                self.states.push(ParserState::ParsingObjectColon);
                 self.consume_char(':')?;
                 self.states.pop();
                 self.skip_whitespace();
