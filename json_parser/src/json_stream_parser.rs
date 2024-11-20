@@ -51,12 +51,13 @@ enum ParserState {
 }
 
 trait ParseStrSlice {
-    fn parse_str(&self) -> Result<&str, JsonStreamParseError>;
+    fn parse_str(&self) -> &str;
 }
 
 impl ParseStrSlice for &[u8] {
-    fn parse_str(&self) -> Result<&str, JsonStreamParseError> {
-        std::str::from_utf8(self).map_err(|_| JsonStreamParseError::InvalidString)
+    fn parse_str(&self) -> &str {
+        // Using from_utf8_unchecked allows to improve a performance up to 30%
+        unsafe { std::str::from_utf8_unchecked(self) } // .map_err(|_| JsonStreamParseError::InvalidString)
     }
 }
 
@@ -268,8 +269,9 @@ where
 
         if is_complete {
             let bytes = &self.buffer[self.start_pos..self.offset];
-            let slice = bytes.parse_str()?;
+            let slice = bytes.parse_str();
 
+            // TODO maybe will be efficient to parse into int if no dots in string
             return match slice.parse::<f64>() {
                 Ok(n) => {
                     let num = if is_negative { -n } else { n };
@@ -291,7 +293,7 @@ where
         while let Some(c) = self.next_char() {
             if c == '"' {
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
-                let slice = bytes.parse_str()?;
+                let slice = bytes.parse_str();
                 let value = if is_key {
                     JsonEvent::Key(slice)
                 } else {
@@ -349,7 +351,7 @@ where
     #[inline(always)]
     fn print_rem(&self) {
         let bytes = &self.buffer[self.start_pos..];
-        let slice = bytes.parse_str().expect("unsafe debug method");
+        let slice = bytes.parse_str(); // .expect("unsafe debug method");
         println!("rem: {}, pos: {}", slice, self.start_pos);
     }
 

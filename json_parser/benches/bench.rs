@@ -34,6 +34,11 @@ fn parse_json<F: for<'a> FnMut(JsonEvent<'a>)>(parser: Rc<RefCell<JsonStreamPars
 
 // Bench result
 // parse_json              time:   [704.66 ns 707.68 ns 710.72 ns]
+// with from_utf8_unchecked instead of from_utf8
+// parse_json              time:   [470.75 ns 474.51 ns 479.65 ns]
+
+// sudo cargo flamegraph -- --call-graph dwarf
+// shows that now most expensive are parse_str and parse::<f64>
 fn benchmark_parse_json(c: &mut Criterion) {
     let parser = Rc::new(RefCell::new(JsonStreamParser::new(|_| {})));
 
