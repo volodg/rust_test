@@ -3,19 +3,17 @@ use crate::doubly_linked_list::DoublyLinkedList;
 use proptest::proptest;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasher, Hash, RandomState};
 use std::ops::Deref;
 use std::rc::Rc;
 
 // TODO:
-// 1. random hasher
-// 3. Cleanup Deleted
-// 4. Avoid Clone
-// 5. Move FixedHashTable to separate module
-// 6. add rehash
+// 1. Cleanup Deleted
+// 2. Avoid Clone
+// 3. Move FixedHashTable to separate module
+// 4. add rehash
 
 enum Slot<K, V> {
     Empty,
@@ -23,46 +21,22 @@ enum Slot<K, V> {
     Deleted,
 }
 
-pub struct FixedHashTable<K, V> {
+pub struct FixedHashTable<K, V, S = RandomState> {
+    hash_builder: S,
     table: Vec<Slot<Rc<K>, V>>,
     history: DoublyLinkedList<Rc<K>>,
     size: usize,
     count: usize,
 }
 
-impl<K: Debug, V: Debug> Debug for Slot<K, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Slot::Empty => write!(f, ""),
-            Slot::Occupied(key, value, _) => {
-                write!(f, "{:?}: {:?}", key, value)
-            }
-            Slot::Deleted => write!(f, ""),
-        }
-    }
-}
-
-impl<K: Eq + Hash + Debug, V: Debug> Debug for FixedHashTable<K, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Начинаем с обозначения имени структуры
-        if let Some(first) = self.table.first() {
-            write!(f, "{{{:?}", first)?;
-            for el in &self.table[1..] {
-                write!(f, ", {:?}", el)?
-            }
-            write!(f, "}}")?
-        }
-        Ok(())
-    }
-}
-
-impl<K: Eq + Hash, V> FixedHashTable<K, V> {
+impl<K: Eq + Hash, V> FixedHashTable<K, V, RandomState> {
     pub fn new(size: usize) -> Self {
         let mut table = Vec::with_capacity(size);
         for _ in 0..size {
             table.push(Slot::Empty)
         }
         Self {
+            hash_builder: Default::default(),
             table,
             history: DoublyLinkedList::<Rc<K>>::new(),
             size,
@@ -78,11 +52,8 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
         self.count == 0
     }
 
-    // TODO, use random hasher to avoid hash attacks
     fn hash<Q: Hash + ?Sized>(&self, key: &Q) -> usize {
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        hasher.finish() as usize % self.size
+        self.hash_builder.hash_one(key) as usize % self.size
     }
 
     // TODO try to return replaced value
@@ -210,6 +181,31 @@ impl<K: Eq + Hash, V> FixedHashTable<K, V> {
             }
             None => None,
         }
+    }
+}
+
+impl<K: Debug, V: Debug> Debug for Slot<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Slot::Empty => write!(f, ""),
+            Slot::Occupied(key, value, _) => {
+                write!(f, "{:?}: {:?}", key, value)
+            }
+            Slot::Deleted => write!(f, ""),
+        }
+    }
+}
+
+impl<K: Eq + Hash + Debug, V: Debug> Debug for FixedHashTable<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(first) = self.table.first() {
+            write!(f, "{{{:?}", first)?;
+            for el in &self.table[1..] {
+                write!(f, ", {:?}", el)?
+            }
+            write!(f, "}}")?
+        }
+        Ok(())
     }
 }
 
