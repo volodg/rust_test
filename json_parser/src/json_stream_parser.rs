@@ -269,11 +269,8 @@ where
 
             return match slice.parse::<f64>() {
                 Ok(n) => {
-                    if is_negative {
-                        (self.callback)(JsonEvent::Number(-n));
-                    } else {
-                        (self.callback)(JsonEvent::Number(n));
-                    }
+                    let num = if is_negative { -n } else { n };
+                    (self.callback)(JsonEvent::Number(num));
                     self.start_pos = self.offset;
                     Ok(true)
                 }
@@ -335,7 +332,7 @@ where
                                 "Expected ',' or ']'".into(),
                             ));
                         }
-                        continue
+                        continue;
                     }
                 }
             }
@@ -395,10 +392,10 @@ where
                             break;
                         }
                     }
-                    continue
+                    continue;
                 }
             }
-            break
+            break;
         }
 
         Ok(false)
@@ -425,7 +422,7 @@ where
                     return Err(JsonStreamParseError::InvalidLiteral(format!(
                         "Expected literal: {}",
                         literal
-                    )));
+                    )))
                 }
             } else {
                 return Ok(false);
@@ -440,10 +437,10 @@ where
                 self.start_pos += 1;
                 Ok(true)
             } else {
-                return Err(JsonStreamParseError::InvalidLiteral(format!(
+                Err(JsonStreamParseError::InvalidLiteral(format!(
                     "Expected '{}'",
                     expected
-                )));
+                )))
             }
         } else {
             Ok(false)
