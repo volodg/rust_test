@@ -7,13 +7,9 @@ pub enum JsonEvent<'a> {
     Number(f64),
     #[allow(dead_code)]
     String(&'a str),
-    #[allow(dead_code)]
     StartObject,
-    #[allow(dead_code)]
     EndObject,
-    #[allow(dead_code)]
     StartArray,
-    #[allow(dead_code)]
     EndArray,
     #[allow(dead_code)]
     Key(&'a str),
@@ -52,10 +48,10 @@ pub enum JsonStreamParseError {
 
 #[derive(Debug, PartialEq)]
 enum ParserState {
-    #[allow(dead_code)]
     ParsingKey,
     ParsingString,
     ParsingArray,
+    ParsingObject,
     ParsingNum(bool), // true - is negative
     ParsingTrue,
     ParsingFalse,
@@ -104,11 +100,11 @@ where
 
                     if let Some(last_char) = self.peek_char() {
                         if last_char == ',' {
-                            self.consume_char(',')?;
+                            self.unsafe_consume_one_char();
                             self.start_pos = self.offset;
                             self.skip_whitespace();
                         } else if last_char == ']' {
-                            self.consume_char(']')?;
+                            self.unsafe_consume_one_char();
                             self.skip_whitespace();
                             self.states.pop(); // pop ParsingArray
                             (self.callback)(JsonEvent::EndArray);
@@ -145,22 +141,25 @@ where
             }
             Some('"') => {
                 self.states.push(ParserState::ParsingString);
-                self.consume_char('"')?;
+                self.unsafe_consume_one_char();
                 self.parse_string(false)
             }
             Some('[') => {
                 self.states.push(ParserState::ParsingArray);
-                self.consume_char('[')?;
+                self.unsafe_consume_one_char();
                 (self.callback)(JsonEvent::StartArray);
                 self.parse_array()
             }
             Some('{') => {
-                todo!() // self.parse_object()
+                self.states.push(ParserState::ParsingObject);
+                self.unsafe_consume_one_char();
+                (self.callback)(JsonEvent::StartObject);
+                self.parse_array()
             }
             Some(c) if c.is_digit(10) || c == '-' => {
                 let is_negative = c == '-';
                 if is_negative {
-                    self.consume_char('-')?;
+                    self.unsafe_consume_one_char();
                 }
 
                 self.states.push(ParserState::ParsingNum(is_negative));
@@ -187,12 +186,12 @@ where
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
                     if last_char == ',' {
-                        self.consume_char(',')?;
+                        self.unsafe_consume_one_char();
                         self.start_pos = self.offset;
                         self.skip_whitespace();
                         self.parse_element()
                     } else if last_char == ']' {
-                        self.consume_char(']')?;
+                        self.unsafe_consume_one_char();
                         self.skip_whitespace();
                         (self.callback)(JsonEvent::EndArray);
                         Ok(true)
@@ -202,6 +201,9 @@ where
                 } else {
                     Ok(false)
                 }
+            }
+            Some(ParserState::ParsingObject) => {
+                todo!()
             }
             Some(ParserState::ParsingKey) => {
                 self.parse_string(true)
@@ -317,12 +319,11 @@ where
         Ok(false)
     }
 
-    // TODO test
     fn parse_array(&mut self) -> Result<bool, JsonStreamParseError> {
         loop {
             self.skip_whitespace();
             if self.peek_char() == Some(']') {
-                self.consume_char(']')?;
+                self.unsafe_consume_one_char();
                 self.states.pop();
                 (self.callback)(JsonEvent::EndArray);
                 return Ok(true);
@@ -336,7 +337,7 @@ where
                 // TODO existing char is expected
                 if let Some(last_char) = self.peek_char() {
                     if last_char == ',' {
-                        self.consume_char(',')?;
+                        self.unsafe_consume_one_char();
                         self.start_pos = self.offset;
                         self.skip_whitespace();
                     } else if last_char != ']' {
@@ -354,18 +355,16 @@ where
     }
 
     // TODO review
-    // fn parse_object(&mut self) -> Result<(), JsonStreamParseError> {
-    //     self.consume_char('{')?;
-    //     (self.callback)(JsonEvent::StartObject);
-    //
-    //     loop {
-    //         self.skip_whitespace();
-    //         if self.peek_char() == Some('}') {
-    //             self.consume_char('}')?;
-    //             (self.callback)(JsonEvent::EndObject);
-    //             break;
-    //         }
-    //
+    fn parse_object(&mut self) -> Result<bool, JsonStreamParseError> {
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some('}') {
+                self.unsafe_consume_one_char();
+                self.states.pop();
+                (self.callback)(JsonEvent::EndObject);
+                return Ok(true);
+            }
+
     //         self.parse_string(true)?; // Обрабатываем ключ
     //         self.skip_whitespace();
     //         self.consume_char(':')?;
@@ -379,10 +378,11 @@ where
     //         } else if self.peek_char() != Some('}') {
     //             return Err(JsonStreamParseError::InvalidObject("Expected ',' or '}'".into()));
     //         }
-    //     }
+        }
     //
     //     Ok(())
-    // }
+        todo!()
+    }
 
     #[allow(dead_code)]
     fn skip_whitespace(&mut self) {
@@ -411,13 +411,9 @@ where
         Ok(true)
     }
 
-    fn consume_char(&mut self, expected: char) -> Result<(), JsonStreamParseError> {
-        if self.next_char() == Some(expected) {
-            self.start_pos += 1;
-            Ok(())
-        } else {
-            return Err(JsonStreamParseError::InvalidLiteral(format!("Expected '{}'", expected)));
-        }
+    fn unsafe_consume_one_char(&mut self) {
+        self.offset += 1;
+        self.start_pos += 1
     }
 
     fn peek_char(&self) -> Option<char> {
@@ -604,6 +600,81 @@ mod tests {
     }
 
     // TODO test parse empty array
+
+    // TODO complete
+    // #[test]
+    fn test_json_parser_object() {
+        let json = r#"
+            {
+                "name": "Alice",
+                "age": 30,
+                "is_active": true,
+                "married": false,
+                "skills": ["Rust", "C++"]
+            }
+        "#;
+
+        let events: RefCell<Vec<OwningJsonEvent>> = RefCell::new(vec![]);
+
+        let bytes = json.as_bytes();
+
+        let index = RefCell::new(0);
+        let get_next_idx = || {
+            let prev_index = *index.borrow();
+            *index.borrow_mut() = prev_index + 1;
+            prev_index
+        };
+
+        fn test(events: &[OwningJsonEvent], mut inc: impl FnMut() -> usize) {
+            assert_eq!(&events[inc()], &OwningJsonEvent::StartObject);
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::Key("name".to_string()));
+            assert_eq!(&events[inc()], &OwningJsonEvent::String("Alice".to_string()));
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::Key("age".to_string()));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Number(30.0));
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::Key("is_active".to_string()));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Bool(true));
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::Key("married".to_string()));
+            assert_eq!(&events[inc()], &OwningJsonEvent::Bool(false));
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::Key("skills".to_string()));
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::StartArray);
+            {
+                assert_eq!(&events[inc()], &OwningJsonEvent::String("Rust".to_string()));
+                assert_eq!(&events[inc()], &OwningJsonEvent::String("C++".to_string()));
+            }
+            assert_eq!(&events[inc()], &OwningJsonEvent::EndArray);
+
+            assert_eq!(&events[inc()], &OwningJsonEvent::EndObject);
+        }
+
+        // for split_at in 1..json.len() {
+        //     events.borrow_mut().clear();
+        //     println!("testing split at: {split_at}, '{}'+'{}'", &json[0..split_at], &json[split_at..]);
+        //     let mut parser = JsonStreamParser::new(|event| {
+        //         events.borrow_mut().push(event.into())
+        //     });
+        //
+        //     assert!(parser.parse(&bytes[0..split_at]).is_ok());
+        //     assert!(parser.parse(&bytes[split_at..]).is_ok());
+        //     *index.borrow_mut() = 0;
+        //     test(&events.borrow(), get_next_idx);
+        // }
+
+        events.borrow_mut().clear();
+
+        let mut parser = JsonStreamParser::new(|event| {
+            events.borrow_mut().push(event.into())
+        });
+        assert!(parser.parse(&bytes).is_ok());
+
+        *index.borrow_mut() = 0;
+        test(&events.borrow(), get_next_idx);
+    }
 
     // TODO add test for null
     #[test]
