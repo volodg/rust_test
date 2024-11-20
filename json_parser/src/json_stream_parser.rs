@@ -159,20 +159,18 @@ where
             }
             Some(ParserState::ParsingArray) => {
                 // TODO fix code duplications
+                // self.parse_array()
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
                     if last_char == ',' {
                         self.unsafe_consume_one_char();
                         self.start_pos = self.offset;
                         self.skip_whitespace();
-                        self.parse_element(false)
+                        self.parse_array()
                     } else if last_char == ']' {
-                        self.unsafe_consume_one_char();
-                        self.skip_whitespace();
-                        (self.callback)(JsonEvent::EndArray);
-                        Ok(true)
+                        self.parse_array()
                     } else {
-                        self.parse_element(false)
+                        self.parse_array()
                     }
                 } else {
                     Ok(false)
@@ -183,10 +181,7 @@ where
                 self.skip_whitespace();
                 if let Some(last_char) = self.peek_char() {
                     if last_char == '}' {
-                        self.unsafe_consume_one_char();
-                        self.skip_whitespace();
-                        (self.callback)(JsonEvent::EndObject);
-                        Ok(true)
+                        self.parse_object()
                     } else {
                         if last_char == ':' || last_char == ',' {
                             self.unsafe_consume_one_char();
