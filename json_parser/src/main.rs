@@ -29,22 +29,20 @@ fn main() {
         }
     "#;
 
-    let mut parser = JsonStreamParser::new(|event| {
-        match event {
-            JsonEvent::Bool(value) => {
-                println!("event with bool {:?}", value)
-            }
-            JsonEvent::Number(value) => {
-                println!("event with float {:?}", value)
-            }
-            JsonEvent::String(value) => {
-                println!("event with string {:?}", value)
-            }
-            JsonEvent::Key(value) => {
-                println!("event with string key {:?}", value)
-            }
-            _ => println!("event {:?}", event)
+    let mut parser = JsonStreamParser::new(|event| match event {
+        JsonEvent::Bool(value) => {
+            println!("event with bool {:?}", value)
         }
+        JsonEvent::Number(value) => {
+            println!("event with float {:?}", value)
+        }
+        JsonEvent::String(value) => {
+            println!("event with string {:?}", value)
+        }
+        JsonEvent::Key(value) => {
+            println!("event with string key {:?}", value)
+        }
+        _ => println!("event {:?}", event),
     });
 
     if let Err(err) = parser.parse(json.as_bytes()) {

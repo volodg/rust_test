@@ -211,7 +211,7 @@ where
     }
 
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
-        let complete = self.expect_literal("null")?;
+        let complete = self.expect_literal(b"null")?;
         if complete {
             (self.callback)(JsonEvent::Null);
             self.start_pos = self.offset;
@@ -221,7 +221,7 @@ where
 
     fn parse_true(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self
-            .expect_literal("true")
+            .expect_literal(b"true")
             .map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(true));
@@ -232,7 +232,7 @@ where
 
     fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self
-            .expect_literal("false")
+            .expect_literal(b"false")
             .map_err(|_| JsonStreamParseError::InvalidBoolean)?;
         if complete {
             (self.callback)(JsonEvent::Bool(false));
@@ -411,16 +411,15 @@ where
         }
     }
 
-    // TODO use &[u8] with O(1) indexing for literal
-    fn expect_literal(&mut self, literal: &str) -> Result<bool, JsonStreamParseError> {
+    // TODO compare with simd can be more efficient
+    fn expect_literal(&mut self, literal: &[u8]) -> Result<bool, JsonStreamParseError> {
         let start_pos = self.offset - self.start_pos;
-        for expected in literal[start_pos..].chars() {
-            if let Some(next_char) = self.next_char() {
-                if next_char != expected {
-                    return Err(JsonStreamParseError::InvalidLiteral(format!(
-                        "Expected literal: {}",
-                        literal
-                    )));
+        for expected in &literal[start_pos..] {
+            if let Some(next_char) = self.next_byte() {
+                if next_char != *expected {
+                    return Err(JsonStreamParseError::InvalidLiteral(
+                        "Unexpected literal".into(),
+                    ));
                 }
             } else {
                 return Ok(false);
@@ -458,14 +457,18 @@ where
         }
     }
 
-    fn next_char(&mut self) -> Option<char> {
+    fn next_byte(&mut self) -> Option<u8> {
         if self.offset < self.buffer.len() {
-            let result = self.buffer[self.offset] as char;
+            let result = self.buffer[self.offset];
             self.offset += 1;
             Some(result)
         } else {
             None
         }
+    }
+
+    fn next_char(&mut self) -> Option<char> {
+        self.next_byte().map(|x| x as char)
     }
 }
 
