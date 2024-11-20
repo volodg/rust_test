@@ -50,6 +50,16 @@ enum ParserState {
     ParsingNull,
 }
 
+trait ParseStrSlice {
+    fn parse_str(&self) -> Result<&str, JsonStreamParseError>;
+}
+
+impl ParseStrSlice for &[u8] {
+    fn parse_str(&self) -> Result<&str, JsonStreamParseError> {
+        std::str::from_utf8(self).map_err(|_| JsonStreamParseError::InvalidString)
+    }
+}
+
 impl<'a, F> JsonStreamParser<F>
 where
     F: FnMut(JsonEvent),
@@ -255,8 +265,7 @@ where
 
         if is_complete {
             let bytes = &self.buffer[self.start_pos..self.offset];
-            let slice =
-                std::str::from_utf8(bytes).map_err(|_| JsonStreamParseError::InvalidString)?;
+            let slice = bytes.parse_str()?;
 
             return match slice.parse::<f64>() {
                 Ok(n) => {
@@ -275,13 +284,14 @@ where
         Ok(false)
     }
 
-    // TODO handle escaped characters
+    // TODO
+    // 1. handle escaped characters
+    // 2. search with simd can be more efficient
     fn parse_string(&mut self, is_key: bool) -> Result<bool, JsonStreamParseError> {
         while let Some(c) = self.next_char() {
             if c == '"' {
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
-                let slice =
-                    std::str::from_utf8(bytes).map_err(|_| JsonStreamParseError::InvalidString)?;
+                let slice = bytes.parse_str()?;
                 let value = if is_key {
                     JsonEvent::Key(slice)
                 } else {
@@ -338,7 +348,7 @@ where
     #[allow(dead_code)]
     fn print_rem(&self) {
         let bytes = &self.buffer[self.start_pos..];
-        let slice = std::str::from_utf8(bytes).expect("unsafe debug method");
+        let slice = bytes.parse_str().expect("unsafe debug method");
         println!("rem: {}, pos: {}", slice, self.start_pos);
     }
 
