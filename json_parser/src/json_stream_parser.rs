@@ -89,70 +89,8 @@ where
         }
 
         let mut complete = self.parse_value()?;
-        while complete {
-            if let Some(top) = self.states.last() {
-                match top {
-                    ParserState::ParsingArray => {
-                        self.skip_whitespace();
-
-                        if let Some(last_char) = self.peek_char() {
-                            if last_char == ',' {
-                                self.unsafe_consume_one_char();
-                                self.start_pos = self.offset;
-                                self.skip_whitespace();
-                            } else if last_char == ']' {
-                                self.unsafe_consume_one_char();
-                                self.skip_whitespace();
-                                self.states.pop(); // pop ParsingArray
-
-                                // TODO cleanup duplication
-                                if let Some(top) = self.states.last() {
-                                    if top == &ParserState::ParsingObjectValue {
-                                        self.states.pop(); // remove ParsingObjectValue
-                                        self.states.pop(); // TODO replace
-                                        self.states.push(ParserState::ParsingObject(true)); // expects key
-                                    }
-                                }
-
-                                (self.callback)(JsonEvent::EndArray);
-                                continue;
-                            } else {
-                                return Err(JsonStreamParseError::InvalidArray("Expected ',' or ']'".into()));
-                            }
-                            complete = self.parse_value()?;
-                        } else {
-                            return Ok(false);
-                        }
-                    }
-                    &ParserState::ParsingObject(_) => {
-                        self.skip_whitespace();
-
-                        if let Some(last_char) = self.peek_char() {
-                            if last_char == ',' {
-                                self.unsafe_consume_one_char();
-                                self.start_pos = self.offset;
-                                self.skip_whitespace();
-                            } else if last_char == '}' {
-                                self.unsafe_consume_one_char();
-                                self.skip_whitespace();
-                                self.states.pop(); // pop ParsingArray
-                                (self.callback)(JsonEvent::EndObject);
-                                continue;
-                            } else {
-                                // TODO: double check return Err(JsonStreamParseError::InvalidArray("Expected ',' or '}'".into()));
-                            }
-                            complete = self.parse_value()?;
-                        } else {
-                            return Ok(false);
-                        }
-                    }
-                    _ => {
-                        // TODO: error?
-                    }
-                }
-            } else {
-                return Ok(true);
-            }
+        while complete && !self.states.is_empty() {
+            complete = self.parse_value()?;
         }
 
         Ok(complete)
