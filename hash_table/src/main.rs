@@ -7,6 +7,9 @@ use crate::fixed_hash_table::FixedHashTable;
 pub mod doubly_linked_list;
 pub mod fixed_hash_table;
 
+// TODO
+// 1. Decouple doubly_linked_list from fixed_hash_table
+
 fn main() -> io::Result<()> {
     let file_path = "./hash_table/resources/98-0.txt";
     let file = File::open(file_path)?;
