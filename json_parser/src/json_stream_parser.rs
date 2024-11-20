@@ -89,7 +89,6 @@ where
         }
 
         let mut complete = self.parse_value()?;
-        // self.print_rem();
         while complete {
             if let Some(top) = self.states.last() {
                 match top {
@@ -129,11 +128,7 @@ where
                         self.skip_whitespace();
 
                         if let Some(last_char) = self.peek_char() {
-                            if last_char == ':' { // TODO: can be deleted?
-                                self.unsafe_consume_one_char();
-                                self.start_pos = self.offset;
-                                self.skip_whitespace();
-                            } else if last_char == ',' {
+                            if last_char == ',' {
                                 self.unsafe_consume_one_char();
                                 self.start_pos = self.offset;
                                 self.skip_whitespace();
