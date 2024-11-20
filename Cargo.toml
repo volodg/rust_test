@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = [
+    "data_generator",
+    "hash_table",
+    "json_parser"
+]
