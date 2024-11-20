@@ -282,11 +282,12 @@ where
                 let bytes = &self.buffer[self.start_pos..(self.offset - 1)];
                 let slice =
                     std::str::from_utf8(bytes).map_err(|_| JsonStreamParseError::InvalidString)?;
-                if is_key {
-                    (self.callback)(JsonEvent::Key(slice));
+                let value = if is_key {
+                    JsonEvent::Key(slice)
                 } else {
-                    (self.callback)(JsonEvent::String(slice));
-                }
+                    JsonEvent::String(slice)
+                };
+                (self.callback)(value);
                 self.start_pos = self.offset;
 
                 return Ok(true);
@@ -306,6 +307,7 @@ where
             }
 
             if let Some(last_char) = self.peek_char() {
+                // hack, use separate parsing states
                 if last_char == ',' {
                     self.unsafe_consume_one_char();
                     self.start_pos = self.offset;
@@ -323,15 +325,11 @@ where
                                 "Expected ',' or ']'".into(),
                             ));
                         }
-                    } else {
-                        break;
+                        continue
                     }
-                } else {
-                    break;
                 }
-            } else {
-                break;
             }
+            break;
         }
 
         Ok(false)
@@ -344,7 +342,6 @@ where
         println!("rem: {}, pos: {}", slice, self.start_pos);
     }
 
-    // TODO review
     fn parse_object(&mut self, expects_key: bool) -> Result<bool, JsonStreamParseError> {
         let mut expects_key = expects_key;
 
@@ -357,6 +354,7 @@ where
             }
 
             if let Some(last_char) = self.peek_char() {
+                // hack, use separate parsing states
                 if last_char == ':' || last_char == ',' {
                     self.unsafe_consume_one_char();
                     self.start_pos = self.offset;
@@ -387,12 +385,10 @@ where
                             break;
                         }
                     }
-                } else {
-                    break;
+                    continue
                 }
-            } else {
-                break;
             }
+            break
         }
 
         Ok(false)
