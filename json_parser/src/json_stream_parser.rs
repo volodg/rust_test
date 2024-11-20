@@ -205,12 +205,14 @@ where
         Ok(complete)
     }
 
+    #[inline(always)]
     fn set_parsing_object_expects_key(&mut self, value: bool) {
         let index = self.states.len() - 1;
         let ParserState::Object(expects_key) = &mut self.states[index] else { unreachable!() };
         *expects_key =  value;
     }
 
+    #[inline(always)]
     fn parse_null(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self.expect_literal(b"null")?;
         if complete {
@@ -220,6 +222,7 @@ where
         Ok(complete)
     }
 
+    #[inline(always)]
     fn parse_true(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self
             .expect_literal(b"true")
@@ -231,6 +234,7 @@ where
         Ok(complete)
     }
 
+    #[inline(always)]
     fn parse_false(&mut self) -> Result<bool, JsonStreamParseError> {
         let complete = self
             .expect_literal(b"false")
@@ -342,6 +346,7 @@ where
     }
 
     #[allow(dead_code)]
+    #[inline(always)]
     fn print_rem(&self) {
         let bytes = &self.buffer[self.start_pos..];
         let slice = bytes.parse_str().expect("unsafe debug method");
@@ -401,6 +406,7 @@ where
     }
 
     #[allow(dead_code)]
+    #[inline(always)]
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.peek_char() {
             if c.is_whitespace() {
@@ -413,6 +419,7 @@ where
     }
 
     // TODO compare with simd can be more efficient
+    #[inline(always)]
     fn expect_literal(&mut self, literal: &[u8]) -> Result<bool, JsonStreamParseError> {
         let start_pos = self.offset - self.start_pos;
         for expected in &literal[start_pos..] {
@@ -429,6 +436,7 @@ where
         Ok(true)
     }
 
+    #[inline(always)]
     fn consume_char(&mut self, expected: char) -> Result<bool, JsonStreamParseError> {
         if let Some(next_char) = self.next_char() {
             if next_char == expected {
@@ -445,22 +453,25 @@ where
         }
     }
 
+    #[inline(always)]
     fn unsafe_consume_one_char(&mut self) {
         self.offset += 1;
         self.start_pos += 1
     }
 
+    #[inline(always)]
     fn peek_char(&self) -> Option<char> {
         if self.offset < self.buffer.len() {
-            Some(self.buffer[self.offset] as char)
+            Some(unsafe { *self.buffer.get_unchecked(self.offset) } as char)
         } else {
             None
         }
     }
 
+    #[inline(always)]
     fn next_byte(&mut self) -> Option<u8> {
         if self.offset < self.buffer.len() {
-            let result = self.buffer[self.offset];
+            let result = unsafe { *self.buffer.get_unchecked(self.offset) };
             self.offset += 1;
             Some(result)
         } else {
@@ -468,6 +479,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn next_char(&mut self) -> Option<char> {
         self.next_byte().map(|x| x as char)
     }
