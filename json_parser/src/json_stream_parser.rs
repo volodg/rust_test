@@ -78,6 +78,9 @@ where
     }
 
     fn append_buffer(&mut self, chunk: &[u8]) {
+        // TODO
+        // Try to chain buffers instead of copying
+        // https://github.com/tokio-rs/bytes/blob/master/tests/test_chain.rs
         if self.buffer.len() + chunk.len() < self.buffer.capacity() {
             self.buffer.extend_from_slice(chunk);
         } else {

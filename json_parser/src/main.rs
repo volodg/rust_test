@@ -140,6 +140,7 @@ fn main() {
     const BUFFER_SIZE: usize = 1024 * 32;
     const FILE_PATH: &str = "./ticks.json";
 
+    // TODO try to use https://docs.rs/ringbuf/latest/ringbuf/ ?
     let (tx, rx) = bounded::<Vec<u8>>(QUEUE_SIZE);
 
     let producer_thread = thread::spawn(move || {
